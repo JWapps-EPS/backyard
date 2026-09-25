@@ -1,0 +1,2410 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backyard Ultra — EPS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --accent: #ff3c3c;
+    --accent2: #ff8c00;
+    --green: #00e676;
+    --blue: #2979ff;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --border: #2a2a3a;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 30px rgba(255,60,60,0.4);
+  }
+  header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 3px;
+    color: #fff;
+  }
+  header span {
+    background: rgba(0,0,0,0.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #fff;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 1;
+    min-width: 110px;
+    padding: 14px 20px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* LAYOUT GLOBAL */
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+  }
+  header { flex-shrink: 0; }
+  .tabs  { flex-shrink: 0; }
+
+  /* PAGES — scrollables par défaut */
+  #pages-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+  .page {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+  .page.active { display: block; }
+
+  /* Page Arrivées : pas de scroll, tout tient dans l'écran */
+  #page-scanner {
+    padding: 8px !important;
+    overflow: hidden !important;
+    max-width: 100% !important;
+    display: none;
+    flex-direction: column;
+  }
+  #page-scanner.active { display: flex !important; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media(max-width:600px) { .form-grid { grid-template-columns: 1fr; } }
+  label { font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 4px; }
+  input, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: 'DM Sans', sans-serif;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  input[type=file] { cursor: pointer; }
+  input[type=range] { padding: 0; cursor: pointer; accent-color: var(--accent); }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #ff5555; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,60,60,0.4); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-green:hover { background: #00ff85; transform: translateY(-1px); }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+  /* STUDENT TABLE */
+  .table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { background: var(--surface2); padding: 10px 12px; text-align: left; color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+  td { padding: 10px 12px; border-top: 1px solid var(--border); }
+  tr:hover td { background: var(--surface2); }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .badge-class { background: rgba(255,140,0,0.2); color: var(--accent2); }
+
+  /* CHRONO */
+  #chrono-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(7rem, 35vw, 18rem);
+    letter-spacing: 4px;
+    text-align: center;
+    line-height: 1;
+    color: var(--text);
+    transition: color 0.3s;
+  }
+  #chrono-display.warning { color: var(--accent2); }
+  #chrono-display.danger { color: var(--accent); animation: pulse 0.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  .next-runner {
+    text-align: center;
+    background: var(--surface2);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .next-runner .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; }
+  .next-runner .name { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; color: var(--accent); letter-spacing: 3px; }
+  .next-runner .class { font-size: 0.9rem; color: var(--accent2); }
+
+  .depart-list {
+    display: grid;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .depart-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    border-left: 3px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .depart-item.done { opacity: 0.4; border-left-color: var(--green); }
+  .depart-item.current { border-left-color: var(--accent); background: rgba(255,60,60,0.1); font-weight: 600; }
+  .depart-item .time-badge {
+    background: var(--bg);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    color: var(--accent2);
+    min-width: 50px;
+    text-align: center;
+  }
+
+  /* SCANNER */
+  #scanner-container {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #111;
+    width: 100%;
+    height: 70vh;
+    max-height: 600px;
+    margin: 0 auto;
+    display: block;
+  } 50%{border-color:var(--accent2)} }
+
+  .scan-result {
+    text-align: center;
+    padding: 20px;
+    border-radius: var(--radius);
+    margin-top: 16px;
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes flashSlide {
+    0%   { transform: translateY(-100%); opacity:0; }
+    10%  { transform: translateY(0);     opacity:1; }
+    70%  { transform: translateY(0);     opacity:1; }
+    100% { transform: translateY(-100%); opacity:0; }
+  }
+  .scan-result.success { background: rgba(0,230,118,0.15); border: 2px solid var(--green); }
+  .scan-result.error { background: rgba(255,60,60,0.15); border: 2px solid var(--accent); }
+  .scan-result.cooldown { background: rgba(255,140,0,0.15); border: 2px solid var(--accent2); }
+  .scan-result .icon { font-size: 3rem; display: block; }
+  .scan-result .title { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 2px; }
+  .scan-result .detail { font-size: 0.9rem; color: var(--muted); margin-top: 4px; }
+
+  .parcours-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .parcours-btn {
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .parcours-btn.active { border-color: var(--accent); background: rgba(255,60,60,0.1); }
+  .parcours-btn .pts { font-family: 'Bebas Neue', sans-serif; font-size: 2.5rem; color: var(--accent); }
+  .parcours-btn .dist { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+  /* CLASSEMENT */
+  .ranking-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .ranking-tab { padding: 8px 20px; border-radius: 20px; border: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; font-weight: 500; color: var(--muted); transition: all 0.2s; }
+  .ranking-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .rank-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 16px;
+    background: var(--surface2);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    transition: transform 0.2s;
+  }
+  .rank-item:hover { transform: translateX(4px); }
+  .rank-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    min-width: 32px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .rank-num.gold { color: #FFD700; }
+  .rank-num.silver { color: #C0C0C0; }
+  .rank-num.bronze { color: #CD7F32; }
+  .rank-info { flex: 1; }
+  .rank-name { font-weight: 600; font-size: 0.95rem; }
+  .rank-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+  .rank-stats { text-align: right; }
+  .rank-pts { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; color: var(--accent); }
+  .rank-dist { font-size: 0.75rem; color: var(--muted); }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 2px; }
+  .stat-lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+  /* TOAST */
+  #toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 24px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: transform 0.3s;
+    z-index: 999;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error { border-color: var(--accent); color: var(--accent); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* GOOGLE SHEETS */
+  .sheets-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--surface2);
+    border-radius: 8px;
+    font-size: 0.8rem;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.syncing { background: var(--accent2); animation: blinkDot 0.8s infinite; }
+  @keyframes blinkDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    display: none;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 90%;
+    max-width: 420px;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 2px; color: var(--accent); margin-bottom: 16px; }
+
+  /* Manual add */
+  .student-add-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+  @media(max-width:500px) { .student-add-form { grid-template-columns: 1fr; } }
+
+  /* Course selector */
+  .course-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .course-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .course-chip.active { border-color: var(--accent2); color: var(--accent2); background: rgba(255,140,0,0.1); }
+  .course-chip.add-btn { color: var(--green); border-color: var(--green); }
+  /* Plein écran natif */
+  :fullscreen body,
+  :-webkit-full-screen body,
+  :-moz-full-screen body {
+    background: var(--bg);
+  }
+  :fullscreen #page-scanner,
+  :-webkit-full-screen #page-scanner,
+  :-moz-full-screen #page-scanner {
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:1.8rem">🏃</div>
+  <h1>Backyard Ultra EPS</h1>
+  <span id="course-label">Course 1</span>
+  <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+    <div class="sheets-status">
+      <div class="dot" id="sheets-dot"></div>
+      <span id="sheets-status-text">Google Sheets non connecté</span>
+    </div>
+    <button onclick="toggleFullscreen()" id="fs-btn" style="
+      background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);
+      color:#fff; padding:6px 14px; border-radius:8px; cursor:pointer;
+      font-size:0.85rem; font-weight:600; font-family:'DM Sans',sans-serif;
+    ">⛶ Plein écran</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('setup')">⚙️ Paramètres</div>
+  <div class="tab" onclick="showTab('students')">👥 Élèves</div>
+  <div class="tab" onclick="showTab('chrono')">⏱️ Chrono</div>
+  <div class="tab" onclick="showTab('scanner')">🏁 Arrivées</div>
+  <div class="tab" onclick="showTab('ranking')">🏆 Classement</div>
+</div>
+
+<!-- ======================== SETUP ======================== -->
+<div class="page active" id="page-setup">
+  <div class="card">
+    <div class="card-title">🏁 Paramètres de la course</div>
+    <div class="form-grid">
+      <div>
+        <label>Intervalle entre départs (secondes)</label>
+        <input type="number" id="interval-sec" value="360" min="10">
+      </div>
+      <div>
+        <label>Délai anti-double scan (secondes)</label>
+        <input type="number" id="cooldown-sec" value="60" min="5">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📍 Parcours</div>
+    <div id="parcours-list"></div>
+    <button class="btn btn-secondary" onclick="addParcours()" style="margin-top:12px">+ Ajouter un parcours</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">☁️ Google Sheets</div>
+
+    <div>
+      <label>URL Apps Script — coller ici puis appuyer sur <strong>Charger</strong></label>
+      <input type="text" id="apps-script-url" placeholder="https://script.google.com/macros/s/.../exec" oninput="autoSaveLocal()">
+    </div>
+
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="loadConfigFromSheets()" style="background:#1565c0; font-size:1rem; padding:12px 24px;">📥 Charger les courses depuis Sheets</button>
+      <button class="btn btn-green" onclick="saveConfigToSheets()">☁️ Sauvegarder sur Sheets</button>
+    </div>
+
+    <div id="sheets-load-status" style="display:none; margin-top:12px; padding:12px; border-radius:8px; font-size:0.85rem; line-height:1.7;"></div>
+
+    <!-- Zone de diagnostic -->
+    <div id="diag-box" style="display:none; margin-top:12px; background:var(--surface2); border-radius:8px; padding:12px; font-size:0.8rem; line-height:1.8; font-family:monospace; color:var(--text); white-space:pre-wrap; word-break:break-all;"></div>
+
+    <div style="margin-top:12px; font-size:0.75rem; color:var(--muted); background:var(--surface2); padding:10px; border-radius:8px; line-height:1.7;">
+      <strong>📋 Déploiement Apps Script (une seule fois) :</strong><br>
+      ① Extensions → Apps Script → collez le code .gs fourni<br>
+      ② Déployer → Nouvelle déploiement → Application Web → Exécuter en tant que : <strong>Moi</strong> → Accès : <strong>Tout le monde</strong><br>
+      ③ Copiez l'URL /exec et collez-la ci-dessus
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💾 Gestion des courses</div>
+    <div class="course-selector" id="course-selector"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="addCourse()">+ Nouvelle course</button>
+      <button class="btn btn-primary" onclick="resetAllStats()" style="background:#e65100">🔄 Remettre à zéro les stats</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="exportJSON()">📥 Exporter JSON</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('import-json').click()">📤 Importer JSON</button>
+      <input type="file" id="import-json" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="testLocalStorage()" style="font-size:0.8rem">🔍 Tester la sauvegarde</button>
+    </div>
+  </div>
+
+  <div class="card" style="border:2px solid var(--accent2);">
+    <div class="card-title">📲 Transférer vers une autre tablette</div>
+    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:14px; line-height:1.6;">
+      Génère un <strong>QR code</strong> que l'autre tablette peut scanner pour récupérer toutes les courses et listes d'élèves instantanément.
+    </p>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="showTransferQR()" style="background:var(--accent2)">📲 Générer le QR code de transfert</button>
+    </div>
+    <div id="transfer-qr-area" style="display:none; margin-top:16px; text-align:center;">
+      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:10px;">Scannez ce QR code avec l'autre tablette (caméra ou application QR) :</p>
+      <canvas id="transfer-qr-canvas" style="border-radius:10px; background:#fff; padding:12px;"></canvas>
+      <p style="font-size:0.75rem; color:var(--muted); margin-top:8px;" id="transfer-size-info"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🔀 Fusionner 2 courses</div>
+    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:14px; line-height:1.6;">
+      Combine les résultats de 2 courses (tablette 1 pt + tablette 2 pts) en une seule course fusionnée.<br>
+      Les élèves sont retrouvés par <strong>nom+prénom</strong> et leurs stats sont <strong>additionnées</strong>.
+    </p>
+    <div class="form-grid" style="gap:10px; margin-bottom:12px;">
+      <div>
+        <label>Course A (ex: tablette 1 pt)</label>
+        <select id="merge-course-a" style="width:100%; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
+      </div>
+      <div>
+        <label>Course B (ex: tablette 2 pts)</label>
+        <select id="merge-course-b" style="width:100%; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
+      </div>
+    </div>
+    <div>
+      <label>Nom de la course fusionnée</label>
+      <input type="text" id="merge-name" value="Résultats fusionnés" style="margin-bottom:12px;">
+    </div>
+    <button class="btn btn-primary" onclick="mergeCourses()" style="background:#6200ea">🔀 Fusionner</button>
+  </div>
+</div>
+
+<!-- ======================== STUDENTS ======================== -->
+<div class="page" id="page-students">
+  <div class="stats-bar" id="student-stats"></div>
+
+  <div class="card">
+    <div class="card-title">📋 Copier la liste depuis une autre course</div>
+    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:12px; line-height:1.6;">
+      Copie la liste d'élèves d'une autre course vers la course active <strong id="copy-target-label"></strong>. Les stats restent à zéro.
+    </p>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <select id="copy-from-course" style="flex:1; min-width:160px; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
+      <button class="btn btn-primary" onclick="copyStudentList()" style="white-space:nowrap">📋 Copier la liste</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📥 Importer depuis Excel</div>
+    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px;">Colonnes attendues : <strong>Élève, Classe</strong> (le N° est attribué automatiquement)</p>
+    <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" onchange="importExcel(event)">
+  </div>
+
+  <div class="card">
+    <div class="card-title">✏️ Ajouter manuellement</div>
+    <div class="student-add-form">
+      <div>
+        <label>Prénom</label>
+        <input type="text" id="add-firstname" placeholder="Thomas">
+      </div>
+      <div>
+        <label>Nom</label>
+        <input type="text" id="add-lastname" placeholder="Dupont">
+      </div>
+      <div>
+        <label>Classe</label>
+        <input type="text" id="add-class" placeholder="3A">
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:10px" onclick="addStudent()">+ Ajouter l'élève</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">👥 Liste des élèves <span style="font-size:0.8rem; color:var(--muted); font-family:'DM Sans'" id="student-count"></span></div>
+    <div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <input type="text" id="search-student" placeholder="🔍 Rechercher..." style="max-width:200px; padding:8px 12px" oninput="renderStudents()">
+      <button class="btn btn-secondary btn-sm" onclick="clearStudents()">🗑️ Vider la liste</button>
+    </div>
+    <div class="table-wrap">
+      <table id="student-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nom</th>
+            <th>Classe</th>
+            <th>N°</th>
+            <th>Points</th>
+            <th>Distance</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="student-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== CHRONO ======================== -->
+<div class="page" id="page-chrono">
+  <div class="stats-bar">
+    <div class="stat-box">
+      <div class="stat-val" id="stat-tour">0</div>
+      <div class="stat-lbl">Tour en cours</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" id="stat-elapsed">00:00</div>
+      <div class="stat-lbl">Temps écoulé</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" id="stat-total-tours">0</div>
+      <div class="stat-lbl">Tours effectués</div>
+    </div>
+  </div>
+
+  <div class="card" style="text-align:center">
+    <div style="font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:2px; margin-bottom:8px" id="chrono-label">Prochain départ dans</div>
+    <div id="chrono-display">06:00</div>
+    <div style="font-size:0.9rem; color:var(--accent2); margin-top:8px; font-weight:600" id="tour-label">Tour 1</div>
+
+    <div class="btn-row" style="justify-content:center; margin-top:20px">
+      <button class="btn btn-primary" id="start-btn" onclick="startChrono()">▶ Démarrer</button>
+      <button class="btn btn-secondary" id="pause-btn" onclick="pauseChrono()" disabled>⏸ Pause</button>
+      <button class="btn btn-secondary" onclick="resetChrono()">⏮ Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Historique des tours</div>
+    <div id="depart-list" class="depart-list"></div>
+  </div>
+</div>
+
+<!-- ======================== ARRIVÉES ======================== -->
+<div class="page" id="page-scanner">
+
+  <!-- Barre du haut : sélecteur parcours + chrono + tour -->
+  <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-shrink:0;">
+    <div id="parcours-selector" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+    <div id="arrivals-chrono" style="
+      font-family:'Bebas Neue',sans-serif; font-size:clamp(2.5rem,8vw,5rem); letter-spacing:4px;
+      color:var(--green); background:var(--surface2); border-radius:10px;
+      padding:2px 20px; flex-shrink:0; min-width:140px; text-align:center; line-height:1.1;
+    ">--:--</div>
+    <div id="btn-tour-info" style="background:var(--surface2); border-radius:8px; padding:5px 12px; font-size:0.78rem; color:var(--accent2); font-weight:700; white-space:nowrap; flex-shrink:0;">Tour 1</div>
+  </div>
+
+  <!-- Corps : grille boutons + journal côte à côte -->
+  <div style="flex:1; display:flex; gap:8px; min-height:0;">
+
+    <!-- Grille de boutons -->
+    <div id="student-btn-grid" style="flex:1; display:grid; gap:4px; align-content:stretch; min-height:0;"></div>
+
+    <!-- Journal arrivées (colonne droite) -->
+    <div style="width:160px; flex-shrink:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; display:flex; flex-direction:column; min-height:0;">
+      <div style="font-size:0.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; flex-shrink:0;">🕐 Arrivées</div>
+      <div id="recent-scans" style="overflow-y:auto; flex:1; font-size:0.72rem;"></div>
+    </div>
+
+  </div>
+
+  <!-- Flash d'arrivée (badge flottant, pas de superposition sur les boutons) -->
+  <div id="arrival-flash" style="
+    display:none; position:fixed; top:68px; left:50%; transform:translateX(-50%);
+    z-index:400; padding:8px 24px; border-radius:30px;
+    font-family:'Bebas Neue',sans-serif; font-size:1.2rem; letter-spacing:2px; color:#fff;
+    white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,0.5); pointer-events:none;
+  "></div>
+
+</div>
+
+<!-- Éléments cachés pour compatibilité -->
+<div id="scan-status" style="display:none"></div>
+<div id="scan-result" style="display:none"><span id="scan-icon"></span><div id="scan-title"></div><div id="scan-detail"></div></div>
+<div id="camera-fullscreen" style="display:none"></div>
+<div id="fs-scan-result" style="display:none"><div id="fs-scan-icon"></div><div id="fs-scan-title"></div><div id="fs-scan-detail"></div></div>
+<div id="fs-parcours-info" style="display:none"><span id="fs-parcours-name"></span><span id="fs-parcours-pts"></span></div>
+
+<!-- ======================== RANKING ======================== -->
+<div class="page" id="page-ranking">
+  <div class="stats-bar">
+    <div class="stat-box">
+      <div class="stat-val" id="rank-total-pts">0</div>
+      <div class="stat-lbl">Points total</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" id="rank-total-dist">0</div>
+      <div class="stat-lbl">km total classe</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" id="rank-total-scans">0</div>
+      <div class="stat-lbl">Passages</div>
+    </div>
+  </div>
+
+  <div class="ranking-tabs">
+    <div class="ranking-tab active" onclick="showRanking('student')">👤 Élèves</div>
+    <div class="ranking-tab" onclick="showRanking('class')">🏫 Classes</div>
+  </div>
+
+  <div id="ranking-list"></div>
+
+  <div class="btn-row" style="margin-top:16px">
+    <button class="btn btn-secondary" onclick="renderRanking()">🔄 Actualiser</button>
+    <button class="btn btn-green" onclick="saveToSheets()">📤 Sync Google Sheets</button>
+    <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
+  </div>
+</div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ======================================================
+// STATE
+// ======================================================
+let state = {
+  courses: {
+    "course1": {
+      name: "Course 1",
+      students: [],
+      scans: [],
+      settings: {
+        intervalSec: 360,
+        cooldownSec: 60,
+        parcours: [
+          { id: "p1", name: "Parcours A", points: 1, distance: 1000 },
+          { id: "p2", name: "Parcours B", points: 2, distance: 2000 }
+        ]
+      }
+    }
+  },
+  activeCourse: "course1",
+  chrono: {
+    running: false,
+    elapsed: 0,
+    nextDepartIdx: 0,
+    interval: null,
+    startTime: null,
+    pausedAt: 0
+  },
+  camera: {
+    stream: null,
+    scanning: false,
+    scanInterval: null
+  },
+  activeParcours: "p1",
+  rankingView: "student",
+  scanCooldowns: {},       // arucoId -> timestamp last scan
+  appsScriptUrl: "",
+  sheetId: "",
+  sheetName: "Course1"
+};
+
+
+function getCourse() { return state.courses[state.activeCourse]; }
+function getSettings() { return getCourse().settings; }
+function getStudents() { return getCourse().students; }
+function getScans() { return getCourse().scans; }
+
+// ======================================================
+// TABS
+// ======================================================
+function showTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  event.target.classList.add('active');
+  if (tab === 'ranking') renderRanking();
+  if (tab === 'chrono') renderDepartList();
+  if (tab === 'scanner') { renderParcoursSelector(); renderStudentButtons(); }
+  if (tab === 'students') { renderStudents(); updateStudentStats(); }
+}
+
+// ======================================================
+// PARCOURS
+// ======================================================
+function renderParcours() {
+  const p = getSettings().parcours;
+  const container = document.getElementById('parcours-list');
+  container.innerHTML = p.map((par, i) => `
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:end">
+      <div>
+        <label>Nom</label>
+        <input type="text" value="${par.name}" onchange="updateParcours(${i},'name',this.value)">
+      </div>
+      <div>
+        <label>Points attribués</label>
+        <input type="number" value="${par.points}" min="1" onchange="updateParcours(${i},'points',parseInt(this.value))">
+      </div>
+      <div>
+        <label>Distance (mètres)</label>
+        <input type="number" value="${par.distance}" min="100" step="50" onchange="updateParcours(${i},'distance',parseInt(this.value))">
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="removeParcours(${i})" style="margin-bottom:2px">🗑️</button>
+    </div>
+  `).join('');
+}
+
+function updateParcours(idx, key, val) {
+  getSettings().parcours[idx][key] = val;
+  renderParcoursSelector();
+}
+
+function addParcours() {
+  const p = getSettings().parcours;
+  p.push({ id: 'p'+(Date.now()), name: `Parcours ${p.length+1}`, points: 1, distance: 1000 });
+  renderParcours();
+  renderParcoursSelector();
+}
+
+function removeParcours(idx) {
+  getSettings().parcours.splice(idx, 1);
+  renderParcours();
+}
+
+function renderParcoursSelector() {
+  const p = getSettings().parcours;
+  const container = document.getElementById('parcours-selector');
+  if (!container) return;
+  const active = p.find(par => par.id === state.activeParcours) || p[0];
+  if (!active) { container.innerHTML = '<em style="color:var(--muted)">Aucun parcours configuré</em>'; return; }
+  // Color based on points
+  const bgColor = active.points === 1 ? '#1565c0' : active.points === 2 ? '#b71c1c' : '#2e7d32';
+  container.innerHTML = `
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div style="background:${bgColor}; border-radius:14px; padding:10px 28px;
+        display:flex; flex-direction:column; align-items:center; min-width:140px;
+        box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:clamp(2rem,8vw,3.5rem);
+          letter-spacing:4px; color:#fff; line-height:1;">${active.points} PT${active.points>1?'S':''}</div>
+        <div style="font-size:clamp(0.85rem,2.5vw,1rem); font-weight:700; color:rgba(255,255,255,0.9); margin-top:2px;">${active.name}</div>
+        <div style="font-size:clamp(0.75rem,2vw,0.85rem); color:rgba(255,255,255,0.7); margin-top:2px;">${(active.distance/1000).toFixed(2)} km</div>
+      </div>
+      <button onclick="changeParcours()"
+        style="background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+        border-radius:8px; padding:8px 16px; font-size:0.8rem; cursor:pointer;">
+        🔄 Changer
+      </button>
+    </div>
+  `;
+}
+
+function changeParcours() {
+  const p = getSettings().parcours;
+  if (p.length <= 1) { toast('Un seul parcours configuré', 'error'); return; }
+  const opts = p.map((par, i) => `${i+1}. ${par.name} (${par.points} pt${par.points>1?'s':''} — ${(par.distance/1000).toFixed(2)} km)`).join('\n');
+  const answer = prompt(`Choisir un parcours :\n\n${opts}\n\nEntrez le numéro :`);
+  if (!answer) return;
+  const idx = parseInt(answer) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= p.length) { toast('Numéro invalide', 'error'); return; }
+  state.activeParcours = p[idx].id;
+  renderParcoursSelector();
+  toast(`Parcours "${p[idx].name}" sélectionné`, 'success');
+}
+
+function selectParcours(id) {
+  state.activeParcours = id;
+  renderParcoursSelector();
+}
+
+// ======================================================
+// SETTINGS sync
+// ======================================================
+function syncSettings() {
+  getSettings().intervalSec = parseInt(document.getElementById('interval-sec').value) || 360;
+  getSettings().cooldownSec = parseInt(document.getElementById('cooldown-sec').value) || 60;
+  state.appsScriptUrl = document.getElementById('apps-script-url').value;
+  state.sheetId = document.getElementById('sheet-id').value;
+  state.sheetName = getCourse().name;
+}
+
+document.getElementById('interval-sec').addEventListener('change', syncSettings);
+document.getElementById('cooldown-sec').addEventListener('change', syncSettings);
+
+// ======================================================
+// COURSES
+// ======================================================
+function deleteCourse(id, event) {
+  event.stopPropagation();
+  const name = state.courses[id]?.name || id;
+  const ids = Object.keys(state.courses);
+  if (ids.length <= 1) { toast('Impossible de supprimer la seule course', 'error'); return; }
+  if (!confirm(`🗑️ Supprimer la course "${name}" ?\n\nToutes les données (élèves, stats, scans) seront perdues.`)) return;
+  delete state.courses[id];
+  if (state.activeCourse === id) state.activeCourse = Object.keys(state.courses)[0];
+  renderCourseSelector();
+  renderStudents();
+  renderDepartList();
+  autoSaveLocal();
+  // Synchroniser la suppression sur Google Sheets
+  saveConfigToSheets();
+  toast(`Course "${name}" supprimée`, 'success');
+}
+
+function renderCourseSelector() {
+  const sel = document.getElementById('course-selector');
+  sel.innerHTML = Object.entries(state.courses).map(([id, c]) => `
+    <div class="course-chip ${state.activeCourse===id?'active':''}" onclick="selectCourse('${id}')" style="position:relative;padding-right:28px;">
+      ${c.name}
+      <span onclick="deleteCourse('${id}',event)" title="Supprimer cette course"
+        style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:0.7rem;opacity:0.5;cursor:pointer;line-height:1;">✕</span>
+    </div>
+  `).join('') + `<div class="course-chip add-btn" onclick="addCourse()">+ Nouvelle</div>`;
+  document.getElementById('course-label').textContent = getCourse().name;
+  const sn = document.getElementById('sheets-course-name');
+  if (sn) sn.textContent = getCourse().name;
+  // Populate merge selects + copy select
+  const entries = Object.entries(state.courses);
+  ['merge-course-a','merge-course-b'].forEach((selId, idx) => {
+    const el = document.getElementById(selId);
+    if (!el) return;
+    el.innerHTML = entries.map(([id,c]) => `<option value="${id}">${c.name}</option>`).join('');
+    if (entries.length > idx) el.value = entries[idx][0];
+  });
+  const copyEl = document.getElementById('copy-from-course');
+  if (copyEl) {
+    const others = entries.filter(([id]) => id !== state.activeCourse);
+    copyEl.innerHTML = others.length
+      ? others.map(([id,c]) => `<option value="${id}">${c.name}</option>`).join('')
+      : '<option value="">— aucune autre course —</option>';
+  }
+  const lbl = document.getElementById('copy-target-label');
+  if (lbl) lbl.textContent = `→ "${getCourse().name}"`;
+}
+
+function selectCourse(id) {
+  state.activeCourse = id;
+  state.scanCooldowns = {};
+  renderCourseSelector();
+  renderStudents();
+  renderDepartList();
+  document.getElementById('interval-sec').value = getSettings().intervalSec;
+  document.getElementById('cooldown-sec').value = getSettings().cooldownSec;
+  renderParcours();
+}
+
+function resetAllStats() {
+  const students = getStudents();
+  if (students.length === 0) { toast('Aucun élève dans la liste', 'error'); return; }
+
+  const confirmed = confirm(
+    `⚠️ Remettre à zéro toutes les stats ?\n\n` +
+    `${students.length} élèves seront conservés mais leurs points, distances, temps et vitesses seront effacés.\n\n` +
+    `Cette action est irréversible.`
+  );
+  if (!confirmed) return;
+
+  // Remet les stats de chaque élève à zéro
+  students.forEach(s => {
+    s.points      = 0;
+    s.distance    = 0;
+    s.scans       = 0;
+    s.speed       = null;
+    s.totalTimeSec = null;
+  });
+
+  // Vide les scans enregistrés
+  getCourse().scans = [];
+
+  // Réinitialise l'état des boutons
+  btnState = {};
+
+  // Remet le chrono à zéro
+  resetChrono();
+
+  renderStudents();
+  updateStudentStats();
+  renderStudentButtons();
+  autoSaveLocal();
+  toast('✅ Stats remises à zéro — la liste est conservée', 'success');
+}
+
+function addCourse() {
+  const name = prompt('Nom de la nouvelle course ?', `Course ${Object.keys(state.courses).length+1}`);
+  if (!name) return;
+
+  const id = 'course'+Date.now();
+  state.courses[id] = {
+    name,
+    students: [],
+    scans: [],
+    settings: {
+      intervalSec: 360, cooldownSec: 60,
+      parcours: [
+        { id:'p1', name:'Parcours A', points:1, distance:1000 },
+        { id:'p2', name:'Parcours B', points:2, distance:2000 }
+      ]
+    }
+  };
+  state.activeCourse = id;
+
+  // Propose de copier la liste d'une course existante
+  const others = Object.entries(state.courses).filter(([oid]) => oid !== id);
+  if (others.length > 0) {
+    const opts = others.map(([oid, c], i) => `${i+1}. ${c.name} (${c.students.length} élèves)`).join('\n');
+    const answer = prompt(
+      `Course "${name}" créée !\n\n` +
+      `Copier la liste d'élèves depuis une course existante ?\n\n${opts}\n\n` +
+      `Entrez un numéro, ou Annuler pour partir d'une liste vide.`
+    );
+    if (answer) {
+      const idx = parseInt(answer) - 1;
+      if (!isNaN(idx) && idx >= 0 && idx < others.length) {
+        const [, srcCourse] = others[idx];
+        state.courses[id].students = srcCourse.students.map(s => ({
+          ...s,
+          id: 'stu_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
+          points: 0, distance: 0, scans: 0, speed: null, totalTimeSec: null, absent: false
+        }));
+        toast(`✅ ${state.courses[id].students.length} élèves copiés depuis "${srcCourse.name}"`, 'success');
+      }
+    }
+  }
+
+  renderCourseSelector();
+  renderStudents();
+  updateStudentStats();
+  renderStudentButtons();
+  autoSaveLocal();
+  // Aller sur l'onglet Élèves pour vérifier / compléter
+  showTab('students');
+}
+
+function mergeCourses() {
+  const idA = document.getElementById('merge-course-a').value;
+  const idB = document.getElementById('merge-course-b').value;
+  const mergeName = (document.getElementById('merge-name').value || 'Résultats fusionnés').trim();
+
+  if (!idA || !idB) { toast('Sélectionnez les 2 courses', 'error'); return; }
+  if (idA === idB) { toast('Les 2 courses doivent être différentes', 'error'); return; }
+
+  const courseA = state.courses[idA];
+  const courseB = state.courses[idB];
+  if (!courseA || !courseB) { toast('Course introuvable', 'error'); return; }
+
+  const confirmed = confirm(
+    `🔀 Fusionner "${courseA.name}" + "${courseB.name}" ?\n\n` +
+    `Une nouvelle course "${mergeName}" sera créée avec les stats additionnées.\n` +
+    `Les élèves sont retrouvés par nom+prénom.\n\n` +
+    `Les courses originales ne sont pas modifiées.`
+  );
+  if (!confirmed) return;
+
+  // Build merged student list starting from course A
+  const merged = courseA.students.map(s => ({ ...s,
+    points: s.points || 0,
+    distance: s.distance || 0,
+    scans: s.scans || 0,
+    totalTimeSec: s.totalTimeSec || 0,
+    speed: s.speed || null
+  }));
+
+  // Merge stats from course B by name match
+  courseB.students.forEach(sb => {
+    const key = (sb.lastname + sb.firstname).toLowerCase().replace(/\s/g,'');
+    const existing = merged.find(m => (m.lastname + m.firstname).toLowerCase().replace(/\s/g,'') === key);
+    if (existing) {
+      existing.points   += (sb.points || 0);
+      existing.distance += (sb.distance || 0);
+      existing.scans    += (sb.scans || 0);
+      const tA = existing.totalTimeSec || 0;
+      const tB = sb.totalTimeSec || 0;
+      existing.totalTimeSec = tA + tB;
+      // Recompute avg speed from total distance / total time
+      if (existing.totalTimeSec > 0) {
+        existing.speed = parseFloat(((existing.distance / existing.totalTimeSec) * 3.6).toFixed(2));
+      }
+    } else {
+      // Student exists only in B — add them
+      merged.push({ ...sb,
+        points: sb.points || 0,
+        distance: sb.distance || 0,
+        scans: sb.scans || 0,
+        totalTimeSec: sb.totalTimeSec || 0,
+        speed: sb.speed || null
+      });
+    }
+  });
+
+  // Create new course
+  const newId = 'course_merged_' + Date.now();
+  state.courses[newId] = {
+    name: mergeName,
+    students: merged,
+    scans: [...(courseA.scans || []), ...(courseB.scans || [])],
+    settings: { ...courseA.settings }
+  };
+  state.activeCourse = newId;
+  renderCourseSelector();
+  renderStudents();
+  autoSaveLocal();
+  toast(`✅ Course "${mergeName}" créée avec ${merged.length} élèves`, 'success');
+  // Switch to ranking to show results
+  showTab('ranking');
+}
+
+// ======================================================
+// STUDENTS
+// ======================================================
+let nextNumId = 1;
+
+function addStudent(firstname, lastname, cls) {
+  if (!firstname) {
+    firstname = document.getElementById('add-firstname').value.trim();
+    lastname = document.getElementById('add-lastname').value.trim();
+    cls = document.getElementById('add-class').value.trim();
+  }
+  if (!firstname || !lastname) { toast('Prénom et nom requis', 'error'); return; }
+  
+  const students = getStudents();
+  // Find next available num
+  const usedIds = students.map(s => s.arucoId);
+  let arucoId = 1;
+  while (usedIds.includes(arucoId)) arucoId++;
+
+  students.push({
+    id: 'stu_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),
+    firstname, lastname,
+    class: cls || '—',
+    arucoId,
+    points: 0,
+    distance: 0,
+    scans: 0
+  });
+  
+  document.getElementById('add-firstname').value = '';
+  document.getElementById('add-lastname').value = '';
+  renderStudents();
+  updateStudentStats();
+  autoSaveLocal();
+  autoSyncSheets();
+}
+
+function removeStudent(id) {
+  const c = getCourse();
+  c.students = c.students.filter(s => s.id !== id);
+  renderStudents();
+  updateStudentStats();
+  renderStudentButtons();
+  autoSaveLocal();
+  autoSyncSheets();
+}
+
+function copyStudentList() {
+  const fromId = document.getElementById('copy-from-course').value;
+  if (!fromId || !state.courses[fromId]) { toast('Sélectionnez une course source', 'error'); return; }
+  const source = state.courses[fromId];
+  if (!source.students || source.students.length === 0) { toast(`Aucun élève dans "${source.name}"`, 'error'); return; }
+  const target = getCourse();
+  if (target.students.length > 0) {
+    if (!confirm(`La course "${target.name}" contient déjà ${target.students.length} élève(s).\n\nRemplacer par la liste de "${source.name}" (${source.students.length} élèves) ?`)) return;
+  }
+  // Copie sans les stats
+  target.students = source.students.map(s => ({
+    ...s,
+    id: 'stu_' + Date.now() + '_' + Math.random().toString(36).substr(2,5),
+    points: 0, distance: 0, scans: 0, speed: null, totalTimeSec: null, absent: false
+  }));
+  renderStudents();
+  updateStudentStats();
+  renderStudentButtons();
+  autoSaveLocal();
+  toast(`✅ ${target.students.length} élèves copiés depuis "${source.name}"`, 'success');
+}
+
+function toggleAbsent(id) {
+  const student = getStudents().find(s => s.id === id);
+  if (!student) return;
+  student.absent = !student.absent;
+  renderStudents();
+  renderStudentButtons();
+  autoSaveLocal();
+  toast(student.absent ? `${student.firstname} marqué absent` : `${student.firstname} de retour`, student.absent ? 'error' : 'success');
+}
+
+function clearStudents() {
+  if (!confirm('Vider toute la liste ?')) return;
+  getCourse().students = [];
+  renderStudents();
+  updateStudentStats();
+  autoSaveLocal();
+}
+
+function reassignNums() {
+  getStudents().forEach((s, i) => { s.arucoId = i+1; });
+  renderStudents();
+  toast('Numéros réassignés', 'success');
+}
+
+function renderStudents() {
+  const query = (document.getElementById('search-student')?.value || '').toLowerCase();
+  const students = getStudents().filter(s =>
+    !query || s.firstname.toLowerCase().includes(query) ||
+    s.lastname.toLowerCase().includes(query) || s.class.toLowerCase().includes(query)
+  );
+  const tbody = document.getElementById('student-tbody');
+  document.getElementById('student-count').textContent = `(${getStudents().length} élèves)`;
+  
+  tbody.innerHTML = students.map((s, i) => `
+    <tr style="${s.absent ? 'opacity:0.45;' : ''}">
+      <td style="color:var(--muted)">${i+1}</td>
+      <td><strong>${s.firstname}</strong> ${s.lastname}${s.absent ? ' <span style="font-size:0.7rem;color:#ff8c00;font-weight:600">ABSENT</span>' : ''}</td>
+      <td><span class="badge badge-class">${s.class}</span></td>
+      <td style="text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--accent)">#${s.arucoId}</td>
+      <td><strong style="color:var(--accent)">${s.points}</strong></td>
+      <td>${(s.distance/1000).toFixed(2)} km</td>
+      <td style="display:flex;gap:4px;">
+        <button class="btn btn-secondary btn-sm" title="${s.absent?'Marquer présent':'Marquer absent'}" onclick="toggleAbsent('${s.id}')">${s.absent ? '✅' : '🚫'}</button>
+        <button class="btn btn-secondary btn-sm" onclick="removeStudent('${s.id}')">🗑️</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+
+
+function updateStudentStats() {
+  const students = getStudents();
+  const classes = [...new Set(students.map(s => s.class))];
+  const container = document.getElementById('student-stats');
+  container.innerHTML = `
+    <div class="stat-box"><div class="stat-val">${students.length}</div><div class="stat-lbl">Élèves</div></div>
+    <div class="stat-box"><div class="stat-val">${classes.length}</div><div class="stat-lbl">Classes</div></div>
+    <div class="stat-box"><div class="stat-val">${students.reduce((a,s)=>a+s.points,0)}</div><div class="stat-lbl">Points total</div></div>
+    <div class="stat-box"><div class="stat-val">${(students.reduce((a,s)=>a+s.distance,0)/1000).toFixed(1)}</div><div class="stat-lbl">km cumulés</div></div>
+  `;
+}
+
+// Import Excel
+function importExcel(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+      let imported = 0;
+
+      // Détecte si la 1ère ligne est un en-tête (contient "élève", "nom", "classe"...)
+      const firstRow = data[0]?.map(h => String(h).toLowerCase().trim()) || [];
+      const hasHeader = firstRow.some(h =>
+        h.includes('élève') || h.includes('eleve') || h.includes('nom') ||
+        h.includes('classe') || h.includes('class') || h.includes('étudiant')
+      );
+      const startRow = hasHeader ? 1 : 0;
+
+      // Format attendu : colonne A = nom complet, colonne B = classe
+      for (let i = startRow; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.length === 0) continue;
+
+        const fullName = String(row[0] || '').trim();
+        const classe   = String(row[1] || '—').trim();
+        if (!fullName) continue;
+
+        // Format : premier mot = NOM, reste = prénom
+        const parts = fullName.split(/\s+/);
+        let firstname, lastname;
+        if (parts.length === 1) {
+          lastname = parts[0]; firstname = '';
+        } else {
+          lastname  = parts[0];
+          firstname = parts.slice(1).join(' ');
+        }
+
+        addStudent(firstname, lastname, classe);
+        imported++;
+      }
+
+      toast(`${imported} élève${imported > 1 ? 's' : ''} importé${imported > 1 ? 's' : ''}`, 'success');
+      event.target.value = '';
+      autoSaveLocal();
+      autoSyncSheets();
+    } catch(err) {
+      toast('Erreur d\'import : ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ======================================================
+// CHRONO — compte à rebours commun, tout le monde part ensemble
+// ======================================================
+let chronoInterval = null;
+let sessionStart = null;
+let sessionElapsed = 0;
+let currentTour = 0;
+let tourHistory = [];
+let lastFiredTour = -1;
+const TOTAL_DURATION_SEC = 3600; // 1 heure fixe
+
+function startChrono() {
+  if (state.chrono.running) return;
+
+  const intervalSec = parseInt(document.getElementById('interval-sec').value) || 360;
+  getSettings().intervalSec = intervalSec;
+
+  state.chrono.running = true;
+  sessionStart = Date.now() - sessionElapsed * 1000;
+
+  document.getElementById('start-btn').disabled = true;
+  document.getElementById('pause-btn').disabled = false;
+
+  // Premier départ immédiat
+  if (lastFiredTour === -1) {
+    lastFiredTour = 0;
+    currentTour = 1;
+    fireDeparture(1);
+  }
+
+  if (chronoInterval) clearInterval(chronoInterval);
+
+  chronoInterval = setInterval(() => {
+    sessionElapsed = (Date.now() - sessionStart) / 1000;
+
+    // Fin de la session 1h
+    if (sessionElapsed >= TOTAL_DURATION_SEC) {
+      sessionElapsed = TOTAL_DURATION_SEC;
+      clearInterval(chronoInterval);
+      state.chrono.running = false;
+      document.getElementById('chrono-display').textContent = '00:00';
+      document.getElementById('chrono-label').textContent = '🏁 SÉANCE TERMINÉE !';
+      document.getElementById('chrono-display').className = 'danger';
+      document.getElementById('start-btn').disabled = true;
+      document.getElementById('pause-btn').disabled = true;
+      playBeep();
+      toast('🏁 Séance terminée !', 'success');
+      return;
+    }
+
+    // Déclenche un tour si l'intervalle est écoulé
+    const nextTourNum = lastFiredTour + 1;
+    const nextTourTime = nextTourNum * intervalSec;
+    if (sessionElapsed >= nextTourTime) {
+      lastFiredTour = nextTourNum;
+      currentTour = nextTourNum + 1;
+      fireDeparture(nextTourNum + 1);
+    }
+
+    // Compte à rebours jusqu'au prochain tour (ou fin de séance)
+    const nextFireTime = lastFiredTour * intervalSec + intervalSec;
+    const nextBoundary = Math.min(nextFireTime, TOTAL_DURATION_SEC);
+    const remaining = Math.max(0, nextBoundary - sessionElapsed);
+
+    updateChronoDisplay(remaining);
+
+    // Synchronise aussi l'affichage dans l'onglet Arrivées
+    const ac = document.getElementById('arrivals-chrono');
+    if (ac) {
+      const m2 = Math.floor(remaining/60).toString().padStart(2,'0');
+      const s2 = Math.floor(remaining%60).toString().padStart(2,'0');
+      ac.textContent = m2+':'+s2;
+      ac.style.color = remaining <= 10 ? 'var(--accent)' : remaining <= 30 ? 'var(--accent2)' : 'var(--green)';
+    }
+
+    // Temps total écoulé
+    const mm = Math.floor(sessionElapsed / 60).toString().padStart(2, '0');
+    const ss = Math.floor(sessionElapsed % 60).toString().padStart(2, '0');
+    document.getElementById('stat-elapsed').textContent = mm + ':' + ss;
+    document.getElementById('stat-tour').textContent = lastFiredTour + 1;
+    document.getElementById('stat-total-tours').textContent = lastFiredTour + 1;
+
+    // Temps total restant dans la séance
+    const totalLeft = TOTAL_DURATION_SEC - sessionElapsed;
+    const tlm = Math.floor(totalLeft / 60).toString().padStart(2, '0');
+    const tls = Math.floor(totalLeft % 60).toString().padStart(2, '0');
+    document.getElementById('tour-label').textContent =
+      `Tour ${lastFiredTour + 1} — Fin de séance dans ${tlm}:${tls}`;
+  }, 200);
+}
+
+let lastDepartureTimestamp = null; // timestamp réel de la dernière sonnerie
+
+function fireDeparture(tourNum) {
+  lastDepartureTimestamp = Date.now(); // stocke le timestamp réel
+  playBeep();
+
+  // Flash vert sur le chrono
+  const display = document.getElementById('chrono-display');
+  display.style.color = 'var(--green)';
+  setTimeout(() => { display.style.color = ''; }, 1200);
+
+  // Label temporaire
+  document.getElementById('chrono-label').textContent = '🏁 PARTEZ !';
+  setTimeout(() => { document.getElementById('chrono-label').textContent = 'Prochain départ dans'; }, 2000);
+
+  // Réactive tous les boutons élèves pour le nouveau tour
+  reactivateAllButtons();
+
+  // Enregistre dans l'historique
+  const mm = Math.floor(sessionElapsed / 60).toString().padStart(2, '0');
+  const ss = Math.floor(sessionElapsed % 60).toString().padStart(2, '0');
+  tourHistory.unshift({ tour: tourNum, time: mm + ':' + ss });
+
+  renderDepartList();
+  toast(`🏁 DÉPART TOUR ${tourNum} !`, 'success');
+}
+
+function updateChronoDisplay(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+  const display = document.getElementById('chrono-display');
+  display.textContent = m + ':' + s;
+  display.className = '';
+  if (seconds <= 10) display.classList.add('danger');
+  else if (seconds <= 30) display.classList.add('warning');
+}
+
+function pauseChrono() {
+  if (!state.chrono.running) return;
+  state.chrono.running = false;
+  clearInterval(chronoInterval);
+  document.getElementById('start-btn').disabled = false;
+  document.getElementById('start-btn').textContent = '▶ Reprendre';
+  document.getElementById('pause-btn').disabled = true;
+}
+
+function resetChrono() {
+  pauseChrono();
+  sessionElapsed = 0;
+  currentTour = 0;
+  lastFiredTour = -1;
+  lastDepartureTimestamp = null;
+  tourHistory = [];
+  const intervalSec = getSettings().intervalSec;
+  const mm = Math.floor(intervalSec / 60).toString().padStart(2, '0');
+  const ss = (intervalSec % 60).toString().padStart(2, '0');
+  document.getElementById('chrono-display').textContent = mm + ':' + ss;
+  document.getElementById('chrono-display').className = '';
+  document.getElementById('chrono-label').textContent = 'Prochain départ dans';
+  document.getElementById('start-btn').textContent = '▶ Démarrer';
+  document.getElementById('stat-elapsed').textContent = '00:00';
+  document.getElementById('stat-tour').textContent = '0';
+  document.getElementById('stat-total-tours').textContent = '0';
+  document.getElementById('tour-label').textContent = 'Tour 1';
+  renderDepartList();
+}
+
+function renderDepartList() {
+  const container = document.getElementById('depart-list');
+  if (!container) return;
+  if (tourHistory.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);padding:12px;font-size:0.85rem;text-align:center">Les départs apparaîtront ici au lancement du chrono</div>';
+    return;
+  }
+  container.innerHTML = tourHistory.map(h => `
+    <div class="depart-item done">
+      <div class="time-badge">${h.time}</div>
+      <div style="flex:1;font-weight:600">Tour ${h.tour} — Départ général 🏁</div>
+      <span style="color:var(--green);font-size:1rem">✓</span>
+    </div>`).join('');
+}
+
+// Beep sound
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Three beeps
+    [0, 0.4, 0.8].forEach(delay => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.8, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.3);
+    });
+    
+    // Long final beep
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.type = 'sawtooth';
+    osc2.frequency.value = 660;
+    gain2.gain.setValueAtTime(1.0, ctx.currentTime + 1.2);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.2);
+    osc2.start(ctx.currentTime + 1.2);
+    osc2.stop(ctx.currentTime + 2.2);
+  } catch(e) {}
+}
+
+// ======================================================
+// ======================================================
+// ARRIVÉES — Grille de boutons élèves
+// ======================================================
+
+// Palette de 20 couleurs vives bien distinctes
+const BTN_COLORS = [
+  '#e53935','#8e24aa','#1e88e5','#00897b','#f4511e',
+  '#6d4c41','#039be5','#43a047','#fb8c00','#d81b60',
+  '#3949ab','#00acc1','#7cb342','#fdd835','#5e35b1',
+  '#c0ca33','#00bfa5','#ff7043','#26c6da','#ec407a'
+];
+
+// État des boutons : studentId -> { disabled, lapStart, laps[] }
+let btnState = {};
+
+function renderStudentButtons() {
+  const students = getStudents().filter(s => !s.absent);
+  const grid = document.getElementById('student-btn-grid');
+  if (!grid) return;
+
+  if (students.length === 0) {
+    grid.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center;font-size:0.9rem">Aucun élève présent — vérifiez la liste dans l\'onglet Élèves</div>';
+    return;
+  }
+
+  // Calcule le nombre de colonnes selon le nombre d'élèves
+  const n = students.length;
+  const cols = n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 25 ? 5 : 6;
+  const rows = Math.ceil(n / cols);
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  grid.style.alignContent = 'stretch';
+
+  grid.innerHTML = students.map((s, i) => {
+    const color = BTN_COLORS[i % BTN_COLORS.length];
+    const bs = btnState[s.id];
+    const disabled = bs && bs.disabled;
+    const laps = bs ? bs.laps.length : 0;
+
+    return `<button
+      id="btn-${s.id}"
+      onclick="handleArrival('${s.id}')"
+      oncontextmenu="return false"
+      ontouchstart="startLongPress('${s.id}', event)"
+      ontouchend="cancelLongPress()"
+      ontouchmove="cancelLongPress()"
+      onmousedown="startLongPress('${s.id}', event)"
+      onmouseup="cancelLongPress()"
+      onmouseleave="cancelLongPress()"
+      style="
+        background: ${disabled ? '#1e1e2e' : color};
+        color: #fff;
+        border: 2px solid ${disabled ? '#3a3a5a' : color};
+        border-radius: 10px;
+        cursor: ${disabled ? 'default' : 'pointer'};
+        padding: 8px 4px;
+        font-family: 'DM Sans', sans-serif;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 2px;
+        transition: transform 0.1s, opacity 0.2s;
+        position: relative; overflow: hidden;
+        min-height: 64px;
+        -webkit-user-select: none; user-select: none;
+        box-shadow: ${disabled ? 'none' : '0 3px 8px rgba(0,0,0,0.3)'};
+      "
+    >
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:clamp(1.4rem,4vw,2.2rem); letter-spacing:1px; line-height:1; color:${disabled ? '#888' : '#fff'}">${s.arucoId}</div>
+      <div style="font-size:clamp(0.45rem,1.1vw,0.65rem); font-weight:500; line-height:1.2; text-align:center; word-break:break-word; color:${disabled ? '#666' : 'rgba(255,255,255,0.85)'}; margin-top:1px">${s.firstname} ${s.lastname}</div>
+      ${laps > 0 ? `<div style="position:absolute;top:3px;right:4px;background:rgba(0,0,0,0.3);border-radius:6px;padding:1px 4px;font-size:0.55rem;font-weight:700;color:#fff">${laps}×</div>` : ''}
+      ${disabled ? `<div style="font-size:0.5rem;color:#555;margin-top:1px">✓</div>` : ''}
+    </button>`;
+  }).join('');
+
+  // Met à jour le tour
+  document.getElementById('btn-tour-info').textContent = `Tour ${lastFiredTour + 1 || 1}`;
+}
+
+let longPressTimer = null;
+
+function startLongPress(studentId, e) {
+  // Seul appui long (2s) réactive un bouton — silencieux pour les élèves
+  longPressTimer = setTimeout(() => {
+    reactivateButton(studentId);
+  }, 2000);
+}
+
+function cancelLongPress() {
+  if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+}
+
+function reactivateButton(studentId) {
+  if (!btnState[studentId]) return;
+
+  const students = getStudents();
+  const student = students.find(s => s.id === studentId);
+
+  // Annule la dernière arrivée enregistrée pour cet élève
+  const laps = btnState[studentId].laps;
+  if (laps.length > 0 && student) {
+    const lastLap = laps.pop();
+    const parcours = getSettings().parcours.find(p => p.id === lastLap.parcoursId);
+    if (parcours) {
+      student.points   = Math.max(0, student.points - parcours.points);
+      student.distance = Math.max(0, student.distance - parcours.distance);
+      student.scans    = Math.max(0, student.scans - 1);
+      // Soustrait le temps réel de ce tour
+      if (lastLap.durationSec && student.totalTimeSec) {
+        student.totalTimeSec = Math.max(0, student.totalTimeSec - lastLap.durationSec);
+      }
+      if (laps.length === 0) { student.speed = null; student.totalTimeSec = null; }
+    }
+    // Retire aussi du journal des scans
+    const scans = getScans();
+    const idx = scans.findLastIndex ? scans.findLastIndex(sc => sc.studentId === studentId)
+                                    : [...scans].reverse().findIndex(sc => sc.studentId === studentId);
+    if (idx >= 0) scans.splice(scans.length - 1 - (scans.findLastIndex ? 0 : idx), 1);
+  }
+
+  btnState[studentId].disabled = false;
+  renderStudentButtons();
+  updateStudentStats();
+  autoSaveLocal();
+  playShortBeep();
+  toast(`↩ Arrivée annulée — ${student ? student.firstname + ' ' + student.lastname : ''} remis en course`, '');
+}
+
+function handleArrival(studentId) {
+  // Ignore si déjà désactivé
+  if (btnState[studentId] && btnState[studentId].disabled) return;
+
+  const students = getStudents();
+  const student = students.find(s => s.id === studentId);
+  if (!student) return;
+
+  const parcours = getSettings().parcours.find(p => p.id === state.activeParcours);
+  if (!parcours) { toast('Sélectionnez un parcours', 'error'); return; }
+
+  const now = Date.now();
+  const lapTime = now; // timestamp de ce tour
+
+  // Init état bouton si besoin
+  if (!btnState[studentId]) btnState[studentId] = { disabled: false, laps: [] };
+
+  // Enregistre le tour avec le temps réel
+  const lapDurationSec = lastDepartureTimestamp ? (lapTime - lastDepartureTimestamp) / 1000 : null;
+  btnState[studentId].laps.push({ time: lapTime, parcoursId: parcours.id, durationSec: lapDurationSec });
+  btnState[studentId].disabled = true;
+
+  // Met à jour les stats élève
+  student.points   += parcours.points;
+  student.distance += parcours.distance;
+  student.scans    += 1;
+
+  // Temps total réel cumulé (somme des durées réelles de chaque tour)
+  const allDurations = btnState[studentId].laps
+    .map(l => l.durationSec)
+    .filter(d => d !== null && d > 0);
+  if (allDurations.length > 0) {
+    student.totalTimeSec = allDurations.reduce((a, b) => a + b, 0);
+  }
+
+  // Vitesse réelle : distance de CE tour / durée réelle de CE tour
+  if (lapDurationSec && lapDurationSec > 0) {
+    const speed = (parcours.distance / lapDurationSec) * 3.6;
+    student.speed = parseFloat(speed.toFixed(2));
+  }
+
+  // Enregistre le scan
+  getScans().push({
+    timestamp: now, studentId, arucoId: student.arucoId,
+    parcoursId: parcours.id, points: parcours.points, distance: parcours.distance
+  });
+
+  // Flash couleur en haut
+  const color = BTN_COLORS[students.indexOf(student) % BTN_COLORS.length];
+  const flash = document.getElementById('arrival-flash');
+  flash.style.background = color;
+  flash.textContent = `🏁 ${student.firstname} ${student.lastname} — +${parcours.points}pt`;
+  flash.style.display = 'block';
+  setTimeout(() => { flash.style.display = 'none'; }, 2000);
+
+  // Son
+  playShortBeep();
+
+  // Journal arrivées
+  addRecentScan(student, parcours);
+  renderStudentButtons();
+  updateStudentStats();
+  autoSaveLocal();
+  autoSyncSheets({
+    timestamp: now,
+    firstname: student.firstname, lastname: student.lastname,
+    class: student.class, arucoId: student.arucoId,
+    parcoursName: parcours.name, points: parcours.points,
+    distance: parcours.distance, totalPoints: student.points,
+    totalDistance: parseFloat((student.distance/1000).toFixed(2))
+  });
+}
+
+// Réactive TOUS les boutons au départ d'un nouveau tour
+function reactivateAllButtons() {
+  Object.keys(btnState).forEach(id => {
+    if (btnState[id]) btnState[id].disabled = false;
+  });
+  renderStudentButtons();
+}
+
+function addRecentScan(student, parcours) {
+  const container = document.getElementById('recent-scans');
+  if (!container) return;
+  const time = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const item = document.createElement('div');
+  item.style.cssText = 'display:flex;gap:8px;align-items:center;padding:4px 8px;border-radius:6px;margin-bottom:4px;font-size:0.78rem;';
+  item.innerHTML = `<span style="color:var(--muted)">${time}</span><strong style="flex:1">${student.firstname} ${student.lastname}</strong><span class="badge badge-class">${student.class}</span><span style="color:var(--accent);font-family:'Bebas Neue';font-size:1rem">+${parcours.points}pt</span>`;
+  container.prepend(item);
+  if (container.children.length > 15) container.lastChild.remove();
+}
+
+function showScanResult() {} // stub conservé pour compatibilité
+function manualScan() {}
+function closeModal() {}
+function stopCamera() {}
+function toggleCamera() {}
+
+function playShortBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 1047;
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    osc.start(); osc.stop(ctx.currentTime + 0.18);
+  } catch(e) {}
+}
+
+// ======================================================
+// RANKING
+// ======================================================
+function showRanking(view) {
+  state.rankingView = view;
+  document.querySelectorAll('.ranking-tab').forEach((t, i) => {
+    t.classList.toggle('active', (i===0&&view==='student')||(i===1&&view==='class'));
+  });
+  renderRanking();
+}
+
+function renderRanking() {
+  const students = getStudents().filter(s => !s.absent);
+  const totalPts = students.reduce((a,s)=>a+s.points,0);
+  const totalDist = students.reduce((a,s)=>a+s.distance,0)/1000;
+  const totalScans = getScans().length;
+
+  document.getElementById('rank-total-pts').textContent = totalPts;
+  document.getElementById('rank-total-dist').textContent = totalDist.toFixed(1);
+  document.getElementById('rank-total-scans').textContent = totalScans;
+
+  const container = document.getElementById('ranking-list');
+
+  if (state.rankingView === 'student') {
+    const sorted = [...students].sort((a, b) => {
+      // 1. Plus de points = meilleur
+      if (b.points !== a.points) return b.points - a.points;
+      // 2. Plus de distance = meilleur
+      if (b.distance !== a.distance) return b.distance - a.distance;
+      // 3. Moins de temps = meilleur (null = pas encore de temps → dernier)
+      const tA = a.totalTimeSec || Infinity;
+      const tB = b.totalTimeSec || Infinity;
+      return tA - tB;
+    });
+    container.innerHTML = sorted.map((s, i) => {
+      const medal = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+      const dist = (s.distance/1000).toFixed(2);
+      const speed = s.speed ? s.speed + ' km/h' : '—';
+      // Temps réel cumulé
+      let timeStr = '—';
+      if (s.totalTimeSec && s.totalTimeSec > 0) {
+        const tmm = Math.floor(s.totalTimeSec / 60).toString().padStart(2,'0');
+        const tss = Math.floor(s.totalTimeSec % 60).toString().padStart(2,'0');
+        timeStr = `${tmm}:${tss}`;
+      }
+
+      return `
+        <div class="rank-item">
+          <div class="rank-num ${medal}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+          <div class="rank-info">
+            <div class="rank-name">${s.firstname} ${s.lastname} <span class="badge badge-class">${s.class}</span></div>
+            <div style="display:grid;grid-template-columns:repeat(4,auto);gap:6px 16px;margin-top:5px;font-size:0.78rem;">
+              <div><span style="color:var(--muted)">🏅 Points</span><br><strong style="color:var(--accent);font-family:'Bebas Neue';font-size:1.2rem">${s.points}</strong></div>
+              <div><span style="color:var(--muted)">📍 Distance</span><br><strong style="color:var(--text)">${dist} km</strong></div>
+              <div><span style="color:var(--muted)">⚡ Vitesse</span><br><strong style="color:var(--accent2)">${speed}</strong></div>
+              <div><span style="color:var(--muted)">⏱ Temps</span><br><strong style="color:var(--text)">${timeStr}</strong></div>
+            </div>
+          </div>
+        </div>`;
+    }).join('') || '<p style="color:var(--muted);padding:20px;text-align:center">Aucune donnée — les stats apparaissent après le premier passage</p>';
+
+  } else {
+    // Compte tous les inscrits (présents + absents) par classe pour affichage
+    const allStudents = getStudents();
+    const totalByClass = {};
+    allStudents.forEach(s => { totalByClass[s.class] = (totalByClass[s.class] || 0) + 1; });
+
+    // Calcul sur les présents uniquement (students déjà filtré)
+    const classes = {};
+    students.forEach(s => {
+      if (!classes[s.class]) classes[s.class] = { name: s.class, points: 0, distance: 0, count: 0, scans: 0 };
+      classes[s.class].points   += s.points;
+      classes[s.class].distance += s.distance;
+      classes[s.class].scans    += s.scans;
+      classes[s.class].count++;  // présents uniquement
+    });
+    // Trier par points/élève présent (pondéré)
+    const sorted = Object.values(classes).sort((a,b) => (b.points/b.count) - (a.points/a.count));
+    container.innerHTML = sorted.map((c, i) => {
+      const medal = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+      const avgPts  = (c.points  / c.count).toFixed(1);
+      const avgDist = (c.distance / c.count / 1000).toFixed(2);
+      const totalDist = (c.distance / 1000).toFixed(2);
+      const totalInClass = totalByClass[c.name] || c.count;
+      const absentCount = totalInClass - c.count;
+      const absentNote = absentCount > 0 ? ` <span style="color:#ff8c00;font-size:0.72rem">(${absentCount} absent${absentCount>1?'s':''})</span>` : '';
+      return `
+        <div class="rank-item">
+          <div class="rank-num ${medal}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+          <div class="rank-info">
+            <div class="rank-name">${c.name} <span style="font-size:0.8rem;color:var(--muted)">${c.count}/${totalInClass} présents</span>${absentNote}</div>
+            <div style="display:grid;grid-template-columns:repeat(4,auto);gap:6px 16px;margin-top:5px;font-size:0.78rem;">
+              <div><span style="color:var(--muted)">🏅 Pts/présent</span><br><strong style="color:var(--accent);font-family:'Bebas Neue';font-size:1.2rem">${avgPts}</strong></div>
+              <div><span style="color:var(--muted)">📍 km/présent</span><br><strong style="color:var(--text)">${avgDist} km</strong></div>
+              <div><span style="color:var(--muted)">📍 km total</span><br><strong style="color:var(--text)">${totalDist} km</strong></div>
+              <div><span style="color:var(--muted)">🏅 Pts total</span><br><strong style="color:var(--accent2)">${c.points}</strong></div>
+            </div>
+          </div>
+        </div>`;
+    }).join('') || '<p style="color:var(--muted);padding:20px;text-align:center">Aucune donnée</p>';
+  }
+}
+
+// ======================================================
+// GOOGLE SHEETS — via JSONP (pas de blocage CORS)
+// ======================================================
+
+function getScriptUrl() {
+  return document.getElementById('apps-script-url').value.trim();
+}
+
+function autoSyncSheets(scanData) {
+  // Sauvegarde silencieuse de la config via JSONP GET (fonctionne sur tablette/fichier local)
+  // Les classements par onglet sont secondaires et nécessiteraient POST — non supporté sur tablette
+  saveConfigToSheets(true);
+}
+
+function diag(msg) {
+  const box = document.getElementById('diag-box');
+  box.style.display = 'block';
+  box.textContent += msg + '\n';
+}
+function diagClear() {
+  const box = document.getElementById('diag-box');
+  box.style.display = 'none';
+  box.textContent = '';
+}
+
+function testSheetsConnection() {
+  // Le bouton "Charger depuis Sheets" teste et charge en même temps
+  loadConfigFromSheets();
+}
+
+function openUrlInTab() {
+  const url = getScriptUrl();
+  if (!url) { toast('URL manquante', 'error'); return; }
+  // Ouvre avec ?data={"action":"ping"}&callback=test
+  window.open(url + '?data=%7B%22action%22%3A%22ping%22%7D', '_blank');
+}
+
+function saveToSheets() {
+  const url = getScriptUrl();
+  if (!url) { toast('URL Apps Script non configurée', 'error'); return; }
+  saveConfigToSheets();
+  toast('☁️ Sauvegarde en cours...', 'success');
+}
+
+function setSheetStatus(status, text) {
+  const dot = document.getElementById('sheets-dot');
+  const label = document.getElementById('sheets-status-text');
+  dot.className = 'dot' + (status==='connected'?' connected':status==='syncing'?' syncing':'');
+  label.textContent = text;
+}
+
+// ======================================================
+// SAVE / LOAD CONFIG VIA SHEETS (JSONP — fonctionne sur tablette)
+// ======================================================
+
+function jsonpFetch(url, timeoutMs) {
+  // Charge une URL via <script> tag (JSONP) — contourne les restrictions CORS/fichier local
+  return new Promise((resolve, reject) => {
+    const cbName = '__byu_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timeout'));
+    }, timeoutMs || 10000);
+
+    window[cbName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('Erreur réseau / script refusé')); };
+    // Ajouter callback à l'URL proprement (évite de doubler le ?)
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + 'callback=' + cbName;
+    document.head.appendChild(script);
+  });
+}
+
+function showLoadStatus(msg, type) {
+  const el = document.getElementById('sheets-load-status');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.background = type === 'ok' ? 'rgba(0,230,118,0.1)' : type === 'error' ? 'rgba(255,60,60,0.1)' : 'rgba(41,121,255,0.1)';
+  el.style.border = '1px solid ' + (type === 'ok' ? 'var(--green)' : type === 'error' ? 'var(--accent)' : 'var(--blue)');
+  el.style.color = type === 'ok' ? 'var(--green)' : type === 'error' ? 'var(--accent)' : 'var(--text)';
+  el.innerHTML = msg;
+}
+
+function applyLoadedConfig(res) {
+  state.courses = res.state.courses;
+  if (res.state.activeCourse && state.courses[res.state.activeCourse])
+    state.activeCourse = res.state.activeCourse;
+  else
+    state.activeCourse = Object.keys(state.courses)[0];
+
+  // Restore activeParcours from saved state if valid
+  if (res.state.activeParcours) state.activeParcours = res.state.activeParcours;
+
+  renderCourseSelector();
+  renderStudents();
+  renderParcours();
+  renderParcoursSelector();
+  updateStudentStats();
+  renderStudentButtons();
+  renderDepartList();
+
+  // Restore interval/cooldown fields from current course settings
+  const s = getSettings();
+  const ivEl = document.getElementById('interval-sec');
+  const cdEl = document.getElementById('cooldown-sec');
+  if (ivEl && s.intervalSec) ivEl.value = s.intervalSec;
+  if (cdEl && s.cooldownSec) cdEl.value = s.cooldownSec;
+
+  autoSaveLocal();
+}
+
+function loadConfigFromSheets() {
+  const url = getScriptUrl();
+  if (!url) {
+    showLoadStatus('❌ Collez d\'abord l\'URL Apps Script ci-dessus.', 'error');
+    return;
+  }
+
+  showLoadStatus('🔄 Connexion à Google Sheets en cours...', 'info');
+  setSheetStatus('syncing', 'Chargement...');
+
+  jsonpFetch(url + '?action=load_config')
+    .then(res => {
+      if (res.status === 'empty') {
+        showLoadStatus('ℹ️ Aucune configuration sauvegardée sur ce Sheets.<br>Ajoutez des élèves ici puis cliquez <strong>☁️ Sauvegarder sur Sheets</strong>.', 'info');
+        setSheetStatus('connected', 'Connecté — vide');
+        return;
+      }
+      if (res.status !== 'ok' || !res.state || !res.state.courses) {
+        showLoadStatus('❌ Erreur : ' + (res.message || 'réponse invalide'), 'error');
+        setSheetStatus('error', 'Erreur');
+        return;
+      }
+
+      const courses = res.state.courses;
+      const nb = Object.keys(courses).length;
+
+      // Afficher les courses trouvées avec leurs infos
+      const lines = Object.values(courses).map(c => {
+        const parcours = (c.settings && c.settings.parcours || []).map(p => `${p.name} ${p.points}pt (${(p.distance/1000).toFixed(1)}km)`).join(', ');
+        const nbElevs = (c.students || []).length;
+        return `<div style="padding:8px 12px; background:var(--surface2); border-radius:8px; margin-top:6px;">
+          <strong style="color:var(--accent2)">${c.name}</strong>
+          <span style="color:var(--muted); font-size:0.78rem; margin-left:8px;">${nbElevs} élève${nbElevs>1?'s':''} — ${parcours}</span>
+        </div>`;
+      }).join('');
+
+      showLoadStatus(
+        `✅ ${nb} course${nb>1?'s':''} trouvée${nb>1?'s':''} sur Google Sheets :<br>${lines}
+        <div style="margin-top:10px;">
+          <button class="btn btn-primary" onclick="confirmLoadConfig()" style="background:#1565c0">📥 Charger ces courses</button>
+        </div>`,
+        'ok'
+      );
+
+      // Stocker temporairement pour que confirmLoadConfig() puisse y accéder
+      window._pendingConfig = res;
+      setSheetStatus('connected', 'Connecté ✓');
+    })
+    .catch(err => {
+      showLoadStatus(
+        `❌ Impossible de joindre Google Sheets.<br><small>Vérifiez l'URL et que le déploiement est bien en accès "Tout le monde".<br>Erreur : ${err.message}</small>`,
+        'error'
+      );
+      setSheetStatus('error', 'Inaccessible');
+    });
+}
+
+function confirmLoadConfig() {
+  const res = window._pendingConfig;
+  if (!res) return;
+  applyLoadedConfig(res);
+  const nb = Object.keys(res.state.courses).length;
+  showLoadStatus(`✅ ${nb} course${nb>1?'s':''} chargée${nb>1?'s':''} avec succès !`, 'ok');
+  window._pendingConfig = null;
+  toast(`✅ ${nb} course(s) chargée(s)`, 'success');
+}
+
+function saveConfigToSheets(silent) {
+  const url = getScriptUrl();
+  if (!url) { if (!silent) showLoadStatus('❌ URL Apps Script manquante.', 'error'); return; }
+
+  // Exclure les scans (trop volumineux pour un GET) — on ne restaure que students + settings
+  const coursesLight = {};
+  Object.entries(state.courses).forEach(([id, c]) => {
+    coursesLight[id] = Object.assign({}, c, { scans: [] });
+  });
+
+  const configState = {
+    courses: coursesLight,
+    activeCourse: state.activeCourse,
+    activeParcours: state.activeParcours
+  };
+
+  const encoded = encodeURIComponent(JSON.stringify(configState));
+  // Vérification longueur URL (limite Apps Script ~8000 chars)
+  const fullUrl = url + '?action=save_config&data=' + encoded;
+  if (fullUrl.length > 7800) {
+    console.warn('saveConfigToSheets: URL trop longue (' + fullUrl.length + ' chars), troncature impossible.');
+    if (!silent) showLoadStatus('❌ Données trop volumineuses pour la sauvegarde GET.', 'error');
+    return;
+  }
+
+  setSheetStatus('syncing', 'Sauvegarde...');
+  jsonpFetch(fullUrl)
+    .then(res => {
+      setSheetStatus('connected', 'Sauvegardé ✓');
+      if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
+    })
+    .catch(err => {
+      setSheetStatus('error', 'Erreur sauvegarde');
+      if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
+    });
+}
+
+// ======================================================
+function exportJSON() {
+  const data = JSON.stringify(state.courses, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'backyard_eps_data.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Export JSON réussi', 'success');
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      state.courses = data;
+      if (!state.courses[state.activeCourse]) state.activeCourse = Object.keys(state.courses)[0];
+      renderCourseSelector();
+      renderStudents();
+      renderParcours();
+      autoSaveLocal();
+      toast('Import JSON réussi', 'success');
+    } catch(err) {
+      toast('Erreur import: '+err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ======================================================
+// TRANSFERT TABLETTE — QR CODE
+// ======================================================
+function showTransferQR() {
+  const area = document.getElementById('transfer-qr-area');
+  const canvas = document.getElementById('transfer-qr-canvas');
+  const info = document.getElementById('transfer-size-info');
+
+  // Données compactes : seulement courses + settings, sans stats pour alléger
+  const payload = JSON.stringify({
+    courses: state.courses,
+    activeCourse: state.activeCourse,
+    appsScriptUrl: document.getElementById('apps-script-url').value || ''
+  });
+
+  // Compresser en base64
+  const b64 = btoa(unescape(encodeURIComponent(payload)));
+  const sizeKB = Math.round(b64.length / 1024);
+
+  if (b64.length > 2953) {
+    // QR code limite ~2953 bytes en binaire / ~1817 en alphanum
+    // Si trop grand : proposer export JSON à la place
+    info.textContent = `⚠️ Données trop volumineuses pour un QR code (${sizeKB} Ko). Utilisez "Exporter JSON" et envoyez le fichier par message.`;
+    info.style.color = 'var(--accent)';
+    area.style.display = 'block';
+    canvas.style.display = 'none';
+    return;
+  }
+
+  // Construire l'URL avec les données encodées dans le hash
+  const url = window.location.href.split('#')[0] + '#transfer=' + encodeURIComponent(b64);
+
+  // Générer le QR
+  canvas.style.display = 'block';
+  canvas.width = 260; canvas.height = 260;
+  // Utilise QRCode.js
+  try {
+    const qrDiv = document.createElement('div');
+    new QRCode(qrDiv, {
+      text: url,
+      width: 260, height: 260,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    // QRCode.js génère un canvas ou img — récupérer et dessiner sur notre canvas
+    setTimeout(() => {
+      const generated = qrDiv.querySelector('canvas') || qrDiv.querySelector('img');
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 260, 260);
+      if (generated) ctx.drawImage(generated, 0, 0, 260, 260);
+    }, 100);
+    info.textContent = `${sizeKB} Ko encodés — scannez avec l'autre tablette`;
+    info.style.color = 'var(--muted)';
+  } catch(e) {
+    info.textContent = 'QR code non disponible — utilisez Export JSON';
+    info.style.color = 'var(--accent)';
+  }
+
+  area.style.display = 'block';
+}
+
+// Détecte un transfert entrant dans l'URL (#transfer=...)
+function checkUrlTransfer() {
+  try {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#transfer=')) return;
+    const b64 = decodeURIComponent(hash.slice('#transfer='.length));
+    const json = decodeURIComponent(escape(atob(b64)));
+    const data = JSON.parse(json);
+    if (!data.courses) return;
+
+    const confirmed = confirm(
+      '📲 Données reçues depuis une autre tablette !\n\n' +
+      `${Object.keys(data.courses).length} course(s) détectée(s).\n\n` +
+      'Charger ces données ? (Les données locales seront remplacées.)'
+    );
+    if (!confirmed) { window.location.hash = ''; return; }
+
+    state.courses = data.courses;
+    if (data.activeCourse && state.courses[data.activeCourse]) state.activeCourse = data.activeCourse;
+    else state.activeCourse = Object.keys(state.courses)[0];
+    if (data.appsScriptUrl) document.getElementById('apps-script-url').value = data.appsScriptUrl;
+
+    renderCourseSelector();
+    renderStudents();
+    renderParcours();
+    renderParcoursSelector();
+    updateStudentStats();
+    renderStudentButtons();
+    autoSaveLocal();
+    window.location.hash = '';
+    toast('✅ Données transférées avec succès !', 'success');
+  } catch(e) {
+    console.warn('Transfert URL invalide:', e);
+    window.location.hash = '';
+  }
+}
+
+function exportCSV() {
+  const students = getStudents();
+  const headers = 'Prénom,Nom,Classe,N°,Points,Distance (km),Passages';
+  const rows = students.map(s =>
+    `${s.firstname},${s.lastname},${s.class},${s.arucoId},${s.points},${(s.distance/1000).toFixed(2)},${s.scans}`
+  );
+  const csv = [headers, ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'backyard_classement.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Export CSV réussi', 'success');
+}
+
+// ======================================================
+// TOAST
+// ======================================================
+let toastTimeout;
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type?' '+type:'');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// ======================================================
+// INIT
+// ======================================================
+// ======================================================
+// PLEIN ÉCRAN
+// ======================================================
+function toggleFullscreen() {
+  const el = document.documentElement;
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+  if (!isFs) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (req) req.call(el);
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+    if (exit) exit.call(document);
+  }
+}
+
+document.addEventListener('fullscreenchange',       updateFsBtn);
+document.addEventListener('webkitfullscreenchange', updateFsBtn);
+document.addEventListener('mozfullscreenchange',    updateFsBtn);
+
+function updateFsBtn() {
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+  const btn = document.getElementById('fs-btn');
+  if (btn) btn.textContent = isFs ? '✕ Quitter plein écran' : '⛶ Plein écran';
+}
+
+function init() {
+  // 1. Charge d'abord le localStorage (ou sessionStorage en fallback)
+  let appsScriptUrl = '';
+  try {
+    let saved = localStorage.getItem('backyard_eps_state');
+    if (!saved) saved = sessionStorage.getItem('backyard_eps_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.courses)       state.courses      = parsed.courses;
+      if (parsed.activeCourse)  state.activeCourse = parsed.activeCourse;
+      if (parsed.appsScriptUrl) {
+        appsScriptUrl = parsed.appsScriptUrl;
+        document.getElementById('apps-script-url').value = appsScriptUrl;
+      }
+      if (parsed.sheetId) document.getElementById('sheet-id').value = parsed.sheetId;
+    }
+  } catch(e) { console.warn('Chargement localStorage:', e); }
+
+  // 2. Rendu initial (données locales)
+  renderParcours();
+  renderParcoursSelector();
+  renderCourseSelector();
+  renderStudents();
+  updateStudentStats();
+  renderDepartList();
+
+  const iv = getSettings().intervalSec;
+  document.getElementById('interval-sec').value = iv;
+  const imm = Math.floor(iv/60).toString().padStart(2,'0');
+  const iss = (iv%60).toString().padStart(2,'0');
+  document.getElementById('chrono-display').textContent = imm+':'+iss;
+
+  autoSaveLocal();
+
+  // 3. Si URL Sheets connue → proposer le chargement automatiquement
+  if (appsScriptUrl && appsScriptUrl.startsWith('https://script.google.com/')) {
+    // Chargement automatique au démarrage
+    loadConfigFromSheets();
+  }
+
+  // 4. Vérifie si un transfert arrive dans l'URL
+  checkUrlTransfer();
+}
+
+// ======================================================
+// EXPORT/IMPORT
+// ======================================================
+
+// ======================================================
+// SAUVEGARDE AUTOMATIQUE
+// ======================================================
+function testLocalStorage() {
+  try {
+    localStorage.setItem('_test_', '1');
+    const v = localStorage.getItem('_test_');
+    localStorage.removeItem('_test_');
+    if (v === '1') {
+      const saved = localStorage.getItem('backyard_eps_state');
+      const students = getStudents().length;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const savedStudents = Object.values(parsed.courses || {}).reduce((a, c) => a + (c.students||[]).length, 0);
+        toast(`✅ LocalStorage OK — ${savedStudents} élèves sauvegardés (${Math.round(saved.length/1024)} Ko)`, 'success');
+      } else {
+        toast('⚠️ LocalStorage disponible mais rien sauvegardé encore', '');
+        autoSaveLocal();
+      }
+    } else {
+      toast('❌ LocalStorage : écriture échouée', 'error');
+    }
+  } catch(e) {
+    toast('❌ LocalStorage bloqué : ' + e.message, 'error');
+  }
+}
+
+function autoSaveLocal() {
+  try {
+    const payload = JSON.stringify({
+      courses: state.courses,
+      activeCourse: state.activeCourse,
+      appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || '',
+      sheetId:       (document.getElementById('sheet-id')        || {}).value || ''
+    });
+    localStorage.setItem('backyard_eps_state', payload);
+  } catch(e) {
+    // Fallback sessionStorage
+    try {
+      sessionStorage.setItem('backyard_eps_state', JSON.stringify({
+        courses: state.courses,
+        activeCourse: state.activeCourse
+      }));
+    } catch(e2) {}
+  }
+}
+
+
+init();
+</script>
+</body>
+</html>
