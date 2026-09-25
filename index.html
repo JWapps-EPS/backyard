@@ -1900,127 +1900,14 @@ function renderRanking() {
 // GOOGLE SHEETS — via JSONP (pas de blocage CORS)
 // ======================================================
 
-let syncQueue = [];       // file d'attente des payloads à envoyer
-let syncRunning = false;  // un seul envoi à la fois
-
 function getScriptUrl() {
   return document.getElementById('apps-script-url').value.trim();
 }
 
-// Envoie UN payload via JSONP et retourne une Promise
-// Envoie via form POST dans une iframe cachée (contourne CORS et CSP)
-// Fire-and-forget : on n'attend pas de réponse, on suppose que ça passe
-function iframeSend(url, payload) {
-  return new Promise((resolve) => {
-    // Crée une iframe cachée unique
-    let iframe = document.getElementById('_sheets_iframe');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.id = '_sheets_iframe';
-      iframe.name = '_sheets_iframe';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-    }
-
-    // Crée un formulaire temporaire
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = url;
-    form.target = '_sheets_iframe';
-    form.style.display = 'none';
-
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'payload';
-    input.value = JSON.stringify(payload);
-    form.appendChild(input);
-
-    document.body.appendChild(form);
-    form.submit();
-    setTimeout(() => {
-      document.body.removeChild(form);
-      resolve({ status: 'sent' });
-    }, 300);
-  });
-}
-
-// Test de connexion via fetch (GET simple, Apps Script renvoie CORS headers)
-async function pingSheets(fullUrl) {
-  // Accepte soit l'URL de base (ajoute ?action=ping) soit une URL complète avec paramètres
-  const url = fullUrl.includes('?') ? fullUrl : fullUrl + '?action=ping';
-  const res = await fetch(url, {
-    method: 'GET',
-    mode: 'cors',
-    cache: 'no-cache'
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return await res.json();
-}
-
-// Traite la file d'attente séquentiellement
-async function flushQueue() {
-  if (syncRunning || syncQueue.length === 0) return;
-  syncRunning = true;
-  const url = getScriptUrl();
-  if (!url) { syncQueue = []; syncRunning = false; return; }
-
-  setSheetStatus('syncing', 'Sync...');
-
-  while (syncQueue.length > 0) {
-    const payload = syncQueue.shift();
-    try {
-      await iframeSend(url, payload);
-    } catch(e) {
-      console.warn('Sheets sync error:', e.message);
-    }
-  }
-
-  setSheetStatus('connected', 'Sync ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
-  syncRunning = false;
-}
-
-function queueSheetWrite(payload) {
-  // Dédoublonne : si un write du même type est déjà en attente, on le remplace
-  const idx = syncQueue.findIndex(p => p.action === payload.action && p.sheetName === payload.sheetName);
-  if (idx >= 0 && payload.action === 'write') syncQueue.splice(idx, 1);
-  syncQueue.push(payload);
-  flushQueue();
-}
-
 function autoSyncSheets(scanData) {
-  const url = getScriptUrl();
-  if (!url) return;
-
-  const students = getStudents();
-  const sheetName = getCourse().name;
-  const rows = students.map(s => [
-    s.firstname, s.lastname, s.class, s.arucoId, s.points,
-    (s.distance / 1000).toFixed(2), s.scans
-  ]);
-
-  // Mise à jour classement
-  queueSheetWrite({
-    action: 'write', sheetName,
-    headers: ['Prénom','Nom','Classe','N°','Points','Distance (km)','Passages'],
-    rows
-  });
-
-  // Ajout ligne scan si fourni
-  if (scanData) {
-    queueSheetWrite({ action: 'append_scan', sheetName, ...scanData });
-  }
-
-  // Sauvegarde config globale (courses + élèves) — dédoublonnée
-  const configState = {
-    courses: state.courses,
-    activeCourse: state.activeCourse,
-    activeParcours: state.activeParcours,
-    appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || ''
-  };
-  const idx = syncQueue.findIndex(p => p.action === 'save_config');
-  if (idx >= 0) syncQueue.splice(idx, 1);
-  syncQueue.push({ action: 'save_config', state: configState });
-  flushQueue();
+  // Sauvegarde silencieuse de la config via JSONP GET (fonctionne sur tablette/fichier local)
+  // Les classements par onglet sont secondaires et nécessiteraient POST — non supporté sur tablette
+  saveConfigToSheets(true);
 }
 
 function diag(msg) {
@@ -2067,12 +1954,12 @@ function setSheetStatus(status, text) {
 function jsonpFetch(url, timeoutMs) {
   // Charge une URL via <script> tag (JSONP) — contourne les restrictions CORS/fichier local
   return new Promise((resolve, reject) => {
-    const cbName = '__byu_cb_' + Date.now();
+    const cbName = '__byu_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     const script = document.createElement('script');
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error('Timeout'));
-    }, timeoutMs || 8000);
+    }, timeoutMs || 10000);
 
     window[cbName] = function(data) {
       cleanup();
@@ -2085,8 +1972,10 @@ function jsonpFetch(url, timeoutMs) {
       if (script.parentNode) script.parentNode.removeChild(script);
     }
 
-    script.onerror = () => { cleanup(); reject(new Error('Erreur réseau')); };
-    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
+    script.onerror = () => { cleanup(); reject(new Error('Erreur réseau / script refusé')); };
+    // Ajouter callback à l'URL proprement (évite de doubler le ?)
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + 'callback=' + cbName;
     document.head.appendChild(script);
   });
 }
@@ -2196,22 +2085,41 @@ function confirmLoadConfig() {
   toast(`✅ ${nb} course(s) chargée(s)`, 'success');
 }
 
-function saveConfigToSheets() {
+function saveConfigToSheets(silent) {
   const url = getScriptUrl();
-  if (!url) { showLoadStatus('❌ URL Apps Script manquante.', 'error'); return; }
+  if (!url) { if (!silent) showLoadStatus('❌ URL Apps Script manquante.', 'error'); return; }
+
+  // Exclure les scans (trop volumineux pour un GET) — on ne restaure que students + settings
+  const coursesLight = {};
+  Object.entries(state.courses).forEach(([id, c]) => {
+    coursesLight[id] = Object.assign({}, c, { scans: [] });
+  });
 
   const configState = {
-    courses: state.courses,
+    courses: coursesLight,
     activeCourse: state.activeCourse,
-    activeParcours: state.activeParcours,
-    appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || ''
+    activeParcours: state.activeParcours
   };
 
+  const encoded = encodeURIComponent(JSON.stringify(configState));
+  // Vérification longueur URL (limite Apps Script ~8000 chars)
+  const fullUrl = url + '?action=save_config&data=' + encoded;
+  if (fullUrl.length > 7800) {
+    console.warn('saveConfigToSheets: URL trop longue (' + fullUrl.length + ' chars), troncature impossible.');
+    if (!silent) showLoadStatus('❌ Données trop volumineuses pour la sauvegarde GET.', 'error');
+    return;
+  }
+
   setSheetStatus('syncing', 'Sauvegarde...');
-  iframeSend(url, { action: 'save_config', state: configState });
-  setTimeout(() => {
-    setSheetStatus('connected', 'Sauvegardé ✓');
-  }, 1500);
+  jsonpFetch(fullUrl)
+    .then(res => {
+      setSheetStatus('connected', 'Sauvegardé ✓');
+      if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
+    })
+    .catch(err => {
+      setSheetStatus('error', 'Erreur sauvegarde');
+      if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
+    });
 }
 
 // ======================================================
