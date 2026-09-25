@@ -954,6 +954,8 @@ function deleteCourse(id, event) {
   renderStudents();
   renderDepartList();
   autoSaveLocal();
+  // Synchroniser la suppression sur Google Sheets
+  saveConfigToSheets();
   toast(`Course "${name}" supprimée`, 'success');
 }
 
@@ -2012,6 +2014,7 @@ function autoSyncSheets(scanData) {
   const configState = {
     courses: state.courses,
     activeCourse: state.activeCourse,
+    activeParcours: state.activeParcours,
     appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || ''
   };
   const idx = syncQueue.findIndex(p => p.action === 'save_config');
@@ -2031,52 +2034,9 @@ function diagClear() {
   box.textContent = '';
 }
 
-async function testSheetsConnection() {
-  const url = getScriptUrl();
-  diagClear();
-
-  if (!url) {
-    diag('❌ Aucune URL renseignée.');
-    diag('→ Collez l\'URL Apps Script dans le champ ci-dessus.');
-    setSheetStatus('error', 'URL manquante');
-    return;
-  }
-
-  if (!url.startsWith('https://script.google.com/macros/s/')) {
-    diag('❌ URL invalide : ' + url);
-    diag('→ L\'URL doit commencer par : https://script.google.com/macros/s/');
-    setSheetStatus('error', 'URL invalide');
-    return;
-  }
-
-  if (!url.endsWith('/exec')) {
-    diag('⚠️ L\'URL ne se termine pas par /exec');
-    diag('→ Utilisez l\'URL de déploiement (pas l\'URL /dev)');
-    diag('   URL reçue : ' + url);
-    setSheetStatus('error', 'URL incorrecte (/exec manquant)');
-    return;
-  }
-
-  diag('✅ Format URL correct');
-  diag('🔄 Envoi du ping (GET)...');
-  setSheetStatus('syncing', 'Test en cours...');
-
-  try {
-    const res = await pingSheets(url);
-    diag('✅ Réponse reçue : ' + JSON.stringify(res));
-    setSheetStatus('connected', 'Connecté ✓');
-    toast('Google Sheets connecté ✓', 'success');
-  } catch(e) {
-    diag('❌ Échec ping GET : ' + e.message);
-    diag('');
-    diag('💡 Cliquez "Ouvrir l\'URL dans un onglet" ci-dessous.');
-    diag('   Vous devriez voir : {"status":"ok","message":"Connecté !"}');
-    diag('   Si erreur Google → redéployez le script (Déployer > Gérer).');
-    diag('');
-    diag('Note : les données sont quand même envoyées lors des scans');
-    diag('via une méthode alternative (form POST), même si ce test échoue.');
-    setSheetStatus('error', 'Ping échoué — données envoyées quand même');
-  }
+function testSheetsConnection() {
+  // Le bouton "Charger depuis Sheets" teste et charge en même temps
+  loadConfigFromSheets();
 }
 
 function openUrlInTab() {
@@ -2089,8 +2049,8 @@ function openUrlInTab() {
 function saveToSheets() {
   const url = getScriptUrl();
   if (!url) { toast('URL Apps Script non configurée', 'error'); return; }
-  autoSyncSheets();
-  toast('Envoi en cours...', '');
+  saveConfigToSheets();
+  toast('☁️ Sauvegarde en cours...', 'success');
 }
 
 function setSheetStatus(status, text) {
@@ -2148,12 +2108,24 @@ function applyLoadedConfig(res) {
   else
     state.activeCourse = Object.keys(state.courses)[0];
 
+  // Restore activeParcours from saved state if valid
+  if (res.state.activeParcours) state.activeParcours = res.state.activeParcours;
+
   renderCourseSelector();
   renderStudents();
   renderParcours();
   renderParcoursSelector();
   updateStudentStats();
   renderStudentButtons();
+  renderDepartList();
+
+  // Restore interval/cooldown fields from current course settings
+  const s = getSettings();
+  const ivEl = document.getElementById('interval-sec');
+  const cdEl = document.getElementById('cooldown-sec');
+  if (ivEl && s.intervalSec) ivEl.value = s.intervalSec;
+  if (cdEl && s.cooldownSec) cdEl.value = s.cooldownSec;
+
   autoSaveLocal();
 }
 
@@ -2231,6 +2203,7 @@ function saveConfigToSheets() {
   const configState = {
     courses: state.courses,
     activeCourse: state.activeCourse,
+    activeParcours: state.activeParcours,
     appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || ''
   };
 
@@ -2238,7 +2211,6 @@ function saveConfigToSheets() {
   iframeSend(url, { action: 'save_config', state: configState });
   setTimeout(() => {
     setSheetStatus('connected', 'Sauvegardé ✓');
-    toast('✅ Configuration sauvegardée sur Google Sheets', 'success');
   }, 1500);
 }
 
@@ -2523,47 +2495,6 @@ function autoSaveLocal() {
   }
 }
 
-// Sync Google Sheets silencieuse (sans toast ni blocage UI)
-let sheetsSyncQueue = null;
-async function autoSyncSheets(scanData) {
-  const url = document.getElementById('apps-script-url').value.trim();
-  if (!url) return;
-
-  setSheetStatus('syncing', 'Sync...');
-
-  // 1. Mise à jour du classement complet
-  const students = getStudents();
-  const rows = students.map(s => [
-    s.firstname, s.lastname, s.class, s.arucoId, s.points, (s.distance/1000).toFixed(2), s.scans
-  ]);
-  const sheetName = getCourse().name;
-
-  try {
-    // Classement
-    await fetch(url, {
-      method: 'POST', mode: 'no-cors',
-      body: JSON.stringify({
-        action: 'write', sheetName,
-        headers: ['Prénom','Nom','Classe','N°','Points','Distance (km)','Passages'],
-        rows
-      }),
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    // 2. Journal du scan si fourni
-    if (scanData) {
-      await fetch(url, {
-        method: 'POST', mode: 'no-cors',
-        body: JSON.stringify({ action: 'append_scan', sheetName, ...scanData }),
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    setSheetStatus('connected', 'Sync ' + new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit',second:'2-digit'}));
-  } catch(e) {
-    setSheetStatus('error', 'Erreur sync');
-  }
-}
 
 init();
 </script>
