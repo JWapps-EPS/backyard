@@ -514,42 +514,28 @@
   </div>
 
   <div class="card">
-    <div class="card-title">📊 Google Sheets — Connexion & Synchronisation</div>
+    <div class="card-title">☁️ Google Sheets</div>
 
     <div>
-      <label>URL Apps Script (Web App) — doit se terminer par <code>/exec</code></label>
+      <label>URL Apps Script — coller ici puis appuyer sur <strong>Charger</strong></label>
       <input type="text" id="apps-script-url" placeholder="https://script.google.com/macros/s/.../exec" oninput="autoSaveLocal()">
     </div>
 
-    <div style="font-size:0.82rem; color:var(--muted); background:var(--surface2); padding:10px 14px; border-radius:8px; margin-top:10px;">
-      📄 Onglet classement : <strong id="sheets-course-name" style="color:var(--accent)">—</strong> &nbsp;|&nbsp; Configuration stockée dans l'onglet <strong>_Config</strong>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="loadConfigFromSheets()" style="background:#1565c0; font-size:1rem; padding:12px 24px;">📥 Charger les courses depuis Sheets</button>
+      <button class="btn btn-green" onclick="saveConfigToSheets()">☁️ Sauvegarder sur Sheets</button>
     </div>
+
+    <div id="sheets-load-status" style="display:none; margin-top:12px; padding:12px; border-radius:8px; font-size:0.85rem; line-height:1.7;"></div>
 
     <!-- Zone de diagnostic -->
     <div id="diag-box" style="display:none; margin-top:12px; background:var(--surface2); border-radius:8px; padding:12px; font-size:0.8rem; line-height:1.8; font-family:monospace; color:var(--text); white-space:pre-wrap; word-break:break-all;"></div>
 
-    <div class="btn-row" style="margin-top:10px;">
-      <button class="btn btn-secondary" onclick="testSheetsConnection()">🔌 Tester</button>
-      <button class="btn btn-primary" onclick="loadConfigFromSheets()" style="background:#1565c0">📥 Charger depuis Sheets</button>
-      <button class="btn btn-green" onclick="saveConfigToSheets()">☁️ Sauvegarder sur Sheets</button>
-      <button class="btn btn-secondary" onclick="openUrlInTab()">🌐 Ouvrir URL</button>
-    </div>
-
-    <div style="margin-top:10px; font-size:0.78rem; color:var(--muted); background:var(--surface2); padding:10px; border-radius:8px; line-height:1.8;">
-      <strong>🔄 Workflow 2 tablettes :</strong><br>
-      ① Tablette 1 : configurer l'URL Apps Script → importer les élèves → <strong>☁️ Sauvegarder sur Sheets</strong><br>
-      ② Tablette 2 : coller la même URL Apps Script → cliquer <strong>📥 Charger depuis Sheets</strong><br>
-      ③ En fin de séance : <strong>📥 Charger depuis Sheets</strong> sur une tablette pour fusionner les résultats
-    </div>
-
-    <div style="margin-top:12px; font-size:0.78rem; color:var(--muted); background:var(--surface2); padding:10px; border-radius:8px; line-height:1.7;">
-      <strong>📋 Checklist déploiement Apps Script :</strong><br>
-      ① Extensions → Apps Script → collez le code fourni<br>
-      ② Déployer → <strong>Nouvelle déploiement</strong> → type : <em>Application Web</em><br>
-      ③ Exécuter en tant que : <strong>Moi</strong> — Accès : <strong>Tout le monde</strong><br>
-      ④ Cliquez Déployer → <strong>Autorisez</strong> l'accès (compte Google)<br>
-      ⑤ Copiez l'URL (finit par <code>/exec</code>) et collez-la ci-dessus<br>
-      ⚠️ Si vous avez modifié le script : Déployer → <strong>Gérer les déploiements</strong> → ✏️ → Nouvelle version
+    <div style="margin-top:12px; font-size:0.75rem; color:var(--muted); background:var(--surface2); padding:10px; border-radius:8px; line-height:1.7;">
+      <strong>📋 Déploiement Apps Script (une seule fois) :</strong><br>
+      ① Extensions → Apps Script → collez le code .gs fourni<br>
+      ② Déployer → Nouvelle déploiement → Application Web → Exécuter en tant que : <strong>Moi</strong> → Accès : <strong>Tout le monde</strong><br>
+      ③ Copiez l'URL /exec et collez-la ci-dessus
     </div>
   </div>
 
@@ -2115,85 +2101,145 @@ function setSheetStatus(status, text) {
 }
 
 // ======================================================
-// SAVE / LOAD CONFIG VIA SHEETS
+// SAVE / LOAD CONFIG VIA SHEETS (JSONP — fonctionne sur tablette)
 // ======================================================
-async function saveConfigToSheets() {
-  const url = getScriptUrl();
-  if (!url) { toast('URL Apps Script non configurée', 'error'); return; }
 
-  setSheetStatus('syncing', 'Sauvegarde config...');
-  toast('Sauvegarde de la configuration...', '');
+function jsonpFetch(url, timeoutMs) {
+  // Charge une URL via <script> tag (JSONP) — contourne les restrictions CORS/fichier local
+  return new Promise((resolve, reject) => {
+    const cbName = '__byu_cb_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timeout'));
+    }, timeoutMs || 8000);
+
+    window[cbName] = function(data) {
+      cleanup();
+      resolve(data);
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('Erreur réseau')); };
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
+    document.head.appendChild(script);
+  });
+}
+
+function showLoadStatus(msg, type) {
+  const el = document.getElementById('sheets-load-status');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.background = type === 'ok' ? 'rgba(0,230,118,0.1)' : type === 'error' ? 'rgba(255,60,60,0.1)' : 'rgba(41,121,255,0.1)';
+  el.style.border = '1px solid ' + (type === 'ok' ? 'var(--green)' : type === 'error' ? 'var(--accent)' : 'var(--blue)');
+  el.style.color = type === 'ok' ? 'var(--green)' : type === 'error' ? 'var(--accent)' : 'var(--text)';
+  el.innerHTML = msg;
+}
+
+function applyLoadedConfig(res) {
+  state.courses = res.state.courses;
+  if (res.state.activeCourse && state.courses[res.state.activeCourse])
+    state.activeCourse = res.state.activeCourse;
+  else
+    state.activeCourse = Object.keys(state.courses)[0];
+
+  renderCourseSelector();
+  renderStudents();
+  renderParcours();
+  renderParcoursSelector();
+  updateStudentStats();
+  renderStudentButtons();
+  autoSaveLocal();
+}
+
+function loadConfigFromSheets() {
+  const url = getScriptUrl();
+  if (!url) {
+    showLoadStatus('❌ Collez d\'abord l\'URL Apps Script ci-dessus.', 'error');
+    return;
+  }
+
+  showLoadStatus('🔄 Connexion à Google Sheets en cours...', 'info');
+  setSheetStatus('syncing', 'Chargement...');
+
+  jsonpFetch(url + '?action=load_config')
+    .then(res => {
+      if (res.status === 'empty') {
+        showLoadStatus('ℹ️ Aucune configuration sauvegardée sur ce Sheets.<br>Ajoutez des élèves ici puis cliquez <strong>☁️ Sauvegarder sur Sheets</strong>.', 'info');
+        setSheetStatus('connected', 'Connecté — vide');
+        return;
+      }
+      if (res.status !== 'ok' || !res.state || !res.state.courses) {
+        showLoadStatus('❌ Erreur : ' + (res.message || 'réponse invalide'), 'error');
+        setSheetStatus('error', 'Erreur');
+        return;
+      }
+
+      const courses = res.state.courses;
+      const nb = Object.keys(courses).length;
+
+      // Afficher les courses trouvées avec leurs infos
+      const lines = Object.values(courses).map(c => {
+        const parcours = (c.settings && c.settings.parcours || []).map(p => `${p.name} ${p.points}pt (${(p.distance/1000).toFixed(1)}km)`).join(', ');
+        const nbElevs = (c.students || []).length;
+        return `<div style="padding:8px 12px; background:var(--surface2); border-radius:8px; margin-top:6px;">
+          <strong style="color:var(--accent2)">${c.name}</strong>
+          <span style="color:var(--muted); font-size:0.78rem; margin-left:8px;">${nbElevs} élève${nbElevs>1?'s':''} — ${parcours}</span>
+        </div>`;
+      }).join('');
+
+      showLoadStatus(
+        `✅ ${nb} course${nb>1?'s':''} trouvée${nb>1?'s':''} sur Google Sheets :<br>${lines}
+        <div style="margin-top:10px;">
+          <button class="btn btn-primary" onclick="confirmLoadConfig()" style="background:#1565c0">📥 Charger ces courses</button>
+        </div>`,
+        'ok'
+      );
+
+      // Stocker temporairement pour que confirmLoadConfig() puisse y accéder
+      window._pendingConfig = res;
+      setSheetStatus('connected', 'Connecté ✓');
+    })
+    .catch(err => {
+      showLoadStatus(
+        `❌ Impossible de joindre Google Sheets.<br><small>Vérifiez l'URL et que le déploiement est bien en accès "Tout le monde".<br>Erreur : ${err.message}</small>`,
+        'error'
+      );
+      setSheetStatus('error', 'Inaccessible');
+    });
+}
+
+function confirmLoadConfig() {
+  const res = window._pendingConfig;
+  if (!res) return;
+  applyLoadedConfig(res);
+  const nb = Object.keys(res.state.courses).length;
+  showLoadStatus(`✅ ${nb} course${nb>1?'s':''} chargée${nb>1?'s':''} avec succès !`, 'ok');
+  window._pendingConfig = null;
+  toast(`✅ ${nb} course(s) chargée(s)`, 'success');
+}
+
+function saveConfigToSheets() {
+  const url = getScriptUrl();
+  if (!url) { showLoadStatus('❌ URL Apps Script manquante.', 'error'); return; }
 
   const configState = {
     courses: state.courses,
     activeCourse: state.activeCourse,
-    appsScriptUrl: document.getElementById('apps-script-url').value || ''
+    appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || ''
   };
 
-  try {
-    await iframeSend(url, { action: 'save_config', state: configState });
-    setSheetStatus('connected', 'Config sauvegardée ✓');
+  setSheetStatus('syncing', 'Sauvegarde...');
+  iframeSend(url, { action: 'save_config', state: configState });
+  setTimeout(() => {
+    setSheetStatus('connected', 'Sauvegardé ✓');
     toast('✅ Configuration sauvegardée sur Google Sheets', 'success');
-  } catch(e) {
-    setSheetStatus('error', 'Erreur sauvegarde');
-    toast('Erreur lors de la sauvegarde : ' + e.message, 'error');
-  }
-}
-
-async function loadConfigFromSheets() {
-  const url = getScriptUrl();
-  if (!url) { toast('URL Apps Script non configurée', 'error'); return; }
-
-  setSheetStatus('syncing', 'Chargement config...');
-  toast('Chargement de la configuration depuis Sheets...', '');
-
-  try {
-    const res = await pingSheets(url + '?action=load_config');
-
-    if (res.status === 'empty') {
-      toast('Aucune configuration sauvegardée sur ce Sheets', 'error');
-      setSheetStatus('error', 'Aucune config');
-      return;
-    }
-    if (res.status !== 'ok' || !res.state) {
-      toast('Erreur : ' + (res.message || 'réponse invalide'), 'error');
-      setSheetStatus('error', 'Erreur chargement');
-      return;
-    }
-
-    const nb = Object.keys(res.state.courses || {}).length;
-    const confirmed = confirm(
-      `📥 Configuration trouvée sur Google Sheets :\n` +
-      `${nb} course(s) disponible(s).\n\n` +
-      `Remplacer les données locales par celles de Sheets ?`
-    );
-    if (!confirmed) { setSheetStatus('connected', 'Annulé'); return; }
-
-    state.courses = res.state.courses || state.courses;
-    if (res.state.activeCourse && state.courses[res.state.activeCourse]) {
-      state.activeCourse = res.state.activeCourse;
-    } else {
-      state.activeCourse = Object.keys(state.courses)[0];
-    }
-    if (res.state.appsScriptUrl) {
-      document.getElementById('apps-script-url').value = res.state.appsScriptUrl;
-    }
-
-    renderCourseSelector();
-    renderStudents();
-    renderParcours();
-    renderParcoursSelector();
-    updateStudentStats();
-    renderStudentButtons();
-    autoSaveLocal();
-
-    setSheetStatus('connected', 'Config chargée ✓');
-    toast(`✅ ${nb} course(s) chargée(s) depuis Google Sheets`, 'success');
-
-  } catch(e) {
-    setSheetStatus('error', 'Erreur réseau');
-    toast('Impossible de charger depuis Sheets : ' + e.message, 'error');
-  }
+  }, 1500);
 }
 
 // ======================================================
@@ -2416,40 +2462,10 @@ function init() {
 
   autoSaveLocal();
 
-  // 3. Si URL Sheets configurée → charge automatiquement la config depuis Sheets
+  // 3. Si URL Sheets connue → proposer le chargement automatiquement
   if (appsScriptUrl && appsScriptUrl.startsWith('https://script.google.com/')) {
-    toast('🔄 Chargement depuis Google Sheets...', '');
-    setSheetStatus('syncing', 'Chargement...');
-    fetch(appsScriptUrl + '?action=load_config', { method: 'GET', mode: 'cors', cache: 'no-cache' })
-      .then(r => r.json())
-      .then(res => {
-        if (res.status === 'ok' && res.state && res.state.courses) {
-          state.courses = res.state.courses;
-          if (res.state.activeCourse && state.courses[res.state.activeCourse])
-            state.activeCourse = res.state.activeCourse;
-          else
-            state.activeCourse = Object.keys(state.courses)[0];
-          renderCourseSelector();
-          renderStudents();
-          renderParcours();
-          renderParcoursSelector();
-          updateStudentStats();
-          renderStudentButtons();
-          autoSaveLocal();
-          const nb = Object.keys(res.state.courses).length;
-          setSheetStatus('connected', 'Sync ✓');
-          toast(`✅ ${nb} course(s) chargée(s) depuis Google Sheets`, 'success');
-        } else if (res.status === 'empty') {
-          setSheetStatus('connected', 'Connecté — aucune config');
-          toast('Sheets connecté — aucune configuration sauvegardée', '');
-        } else {
-          setSheetStatus('error', 'Erreur chargement');
-        }
-      })
-      .catch(() => {
-        setSheetStatus('error', 'Sheets inaccessible');
-        toast('Impossible de joindre Sheets — données locales utilisées', '');
-      });
+    // Chargement automatique au démarrage
+    loadConfigFromSheets();
   }
 
   // 4. Vérifie si un transfert arrive dans l'URL
