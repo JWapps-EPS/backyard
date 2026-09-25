@@ -2089,7 +2089,7 @@ function saveConfigToSheets(silent) {
   const url = getScriptUrl();
   if (!url) { if (!silent) showLoadStatus('❌ URL Apps Script manquante.', 'error'); return; }
 
-  // Exclure les scans (trop volumineux pour un GET) — on ne restaure que students + settings
+  // Exclure les scans (trop volumineux) — on restaure students + settings seulement
   const coursesLight = {};
   Object.entries(state.courses).forEach(([id, c]) => {
     coursesLight[id] = Object.assign({}, c, { scans: [] });
@@ -2101,23 +2101,71 @@ function saveConfigToSheets(silent) {
     activeParcours: state.activeParcours
   };
 
+  const body = JSON.stringify({ action: 'save_config', state: configState });
+  setSheetStatus('syncing', 'Sauvegarde...');
+
+  // 1. Essai sendBeacon (fonctionne sur tablette depuis fichier local, fire-and-forget)
+  if (navigator.sendBeacon) {
+    const blob = new Blob([body], { type: 'application/json' });
+    const sent = navigator.sendBeacon(url, blob);
+    if (sent) {
+      setTimeout(() => {
+        setSheetStatus('connected', 'Sauvegardé ✓');
+        if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
+      }, 1500);
+      return;
+    }
+  }
+
+  // 2. Fallback : JSONP GET par courses (découpe si trop long)
+  _saveConfigJsonpChunked(url, configState, silent);
+}
+
+function _saveConfigJsonpChunked(url, configState, silent) {
+  // Essai en une seule fois d'abord
   const encoded = encodeURIComponent(JSON.stringify(configState));
-  // Vérification longueur URL (limite Apps Script ~8000 chars)
   const fullUrl = url + '?action=save_config&data=' + encoded;
-  if (fullUrl.length > 7800) {
-    console.warn('saveConfigToSheets: URL trop longue (' + fullUrl.length + ' chars), troncature impossible.');
-    if (!silent) showLoadStatus('❌ Données trop volumineuses pour la sauvegarde GET.', 'error');
+
+  if (fullUrl.length <= 7800) {
+    jsonpFetch(fullUrl)
+      .then(() => {
+        setSheetStatus('connected', 'Sauvegardé ✓');
+        if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
+      })
+      .catch(err => {
+        setSheetStatus('error', 'Erreur');
+        if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
+      });
     return;
   }
 
-  setSheetStatus('syncing', 'Sauvegarde...');
-  jsonpFetch(fullUrl)
-    .then(res => {
+  // Sauvegarder course par course séquentiellement
+  const courseIds = Object.keys(configState.courses);
+  if (!silent) showLoadStatus('🔄 Sauvegarde en cours (' + courseIds.length + ' courses)...', 'info');
+
+  let chain = Promise.resolve();
+  courseIds.forEach((id, i) => {
+    chain = chain.then(() => {
+      const partial = {
+        courses: { [id]: configState.courses[id] },
+        activeCourse: configState.activeCourse,
+        activeParcours: configState.activeParcours,
+        _chunk: i,
+        _total: courseIds.length,
+        _merge: i > 0  // indique au script de fusionner avec l'existant
+      };
+      const enc = encodeURIComponent(JSON.stringify(partial));
+      return jsonpFetch(url + '?action=save_config&data=' + enc);
+    });
+  });
+
+  chain
+    .then(() => {
       setSheetStatus('connected', 'Sauvegardé ✓');
-      if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
+      if (!silent) showLoadStatus('✅ Toutes les courses sauvegardées', 'ok');
     })
     .catch(err => {
-      setSheetStatus('error', 'Erreur sauvegarde');
+      setSheetStatus('error', 'Erreur');
       if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
     });
 }
