@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Backyard Ultra — EPS</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap');
 
@@ -471,10 +470,6 @@
   <h1>Backyard Ultra EPS</h1>
   <span id="course-label">Course 1</span>
   <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-    <div class="sheets-status">
-      <div class="dot" id="sheets-dot"></div>
-      <span id="sheets-status-text">Google Sheets non connecté</span>
-    </div>
     <button onclick="toggleFullscreen()" id="fs-btn" style="
       background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);
       color:#fff; padding:6px 14px; border-radius:8px; cursor:pointer;
@@ -493,50 +488,46 @@
 
 <!-- ======================== SETUP ======================== -->
 <div class="page active" id="page-setup">
-  <div class="card">
-    <div class="card-title">🏁 Paramètres de la course</div>
-    <div class="form-grid">
-      <div>
-        <label>Intervalle entre départs (secondes)</label>
-        <input type="number" id="interval-sec" value="360" min="10">
-      </div>
-      <div>
-        <label>Délai anti-double scan (secondes)</label>
-        <input type="number" id="cooldown-sec" value="60" min="5">
-      </div>
-    </div>
-  </div>
 
   <div class="card">
-    <div class="card-title">📍 Parcours</div>
-    <div id="parcours-list"></div>
-    <button class="btn btn-secondary" onclick="addParcours()" style="margin-top:12px">+ Ajouter un parcours</button>
-  </div>
-
-  <div class="card">
-    <div class="card-title">☁️ Google Sheets</div>
-
+    <div class="card-title">🔗 Connexion Google Sheets</div>
     <div>
-      <label>URL Apps Script — coller ici puis appuyer sur <strong>Charger</strong></label>
-      <input type="text" id="apps-script-url" placeholder="https://script.google.com/macros/s/.../exec" oninput="autoSaveLocal()">
+      <label>URL Google Apps Script</label>
+      <input type="text" id="apps-script-url"
+        placeholder="https://script.google.com/macros/s/.../exec"
+        onblur="syncScriptUrl()"
+        onkeydown="if(event.key==='Enter'){this.blur();}">
     </div>
-
     <div class="btn-row" style="margin-top:12px;">
-      <button class="btn btn-primary" onclick="loadConfigFromSheets()" style="background:#1565c0; font-size:1rem; padding:12px 24px;">📥 Charger les courses depuis Sheets</button>
-      <button class="btn btn-green" onclick="saveConfigToSheets()">☁️ Sauvegarder sur Sheets</button>
+      <button class="btn btn-primary" onclick="loadConfigFromSheets()" style="background:#1565c0; font-size:1rem; padding:12px 24px;">🔄 Actualiser les données</button>
     </div>
-
     <div id="sheets-load-status" style="display:none; margin-top:12px; padding:12px; border-radius:8px; font-size:0.85rem; line-height:1.7;"></div>
-
-    <!-- Zone de diagnostic -->
-    <div id="diag-box" style="display:none; margin-top:12px; background:var(--surface2); border-radius:8px; padding:12px; font-size:0.8rem; line-height:1.8; font-family:monospace; color:var(--text); white-space:pre-wrap; word-break:break-all;"></div>
-
     <div style="margin-top:12px; font-size:0.75rem; color:var(--muted); background:var(--surface2); padding:10px; border-radius:8px; line-height:1.7;">
       <strong>📋 Déploiement Apps Script (une seule fois) :</strong><br>
       ① Extensions → Apps Script → collez le code .gs fourni<br>
       ② Déployer → Nouvelle déploiement → Application Web → Exécuter en tant que : <strong>Moi</strong> → Accès : <strong>Tout le monde</strong><br>
       ③ Copiez l'URL /exec et collez-la ci-dessus
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⏱ Chrono</div>
+    <div class="form-grid">
+      <div>
+        <label>Durée du tour (secondes)</label>
+        <input type="number" id="interval-sec" value="360" min="10">
+      </div>
+      <div>
+        <label>Cooldown (secondes)</label>
+        <input type="number" id="cooldown-sec" value="60" min="5">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗺 Parcours</div>
+    <div id="parcours-list"></div>
+    <button class="btn btn-secondary" onclick="addParcours()" style="margin-top:12px">+ Ajouter un parcours</button>
   </div>
 
   <div class="card">
@@ -553,21 +544,6 @@
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="testLocalStorage()" style="font-size:0.8rem">🔍 Tester la sauvegarde</button>
-    </div>
-  </div>
-
-  <div class="card" style="border:2px solid var(--accent2);">
-    <div class="card-title">📲 Transférer vers une autre tablette</div>
-    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:14px; line-height:1.6;">
-      Génère un <strong>QR code</strong> que l'autre tablette peut scanner pour récupérer toutes les courses et listes d'élèves instantanément.
-    </p>
-    <div class="btn-row">
-      <button class="btn btn-primary" onclick="showTransferQR()" style="background:var(--accent2)">📲 Générer le QR code de transfert</button>
-    </div>
-    <div id="transfer-qr-area" style="display:none; margin-top:16px; text-align:center;">
-      <p style="font-size:0.8rem; color:var(--muted); margin-bottom:10px;">Scannez ce QR code avec l'autre tablette (caméra ou application QR) :</p>
-      <canvas id="transfer-qr-canvas" style="border-radius:10px; background:#fff; padding:12px;"></canvas>
-      <p style="font-size:0.75rem; color:var(--muted); margin-top:8px;" id="transfer-size-info"></p>
     </div>
   </div>
 
@@ -766,7 +742,6 @@
 
   <div class="btn-row" style="margin-top:16px">
     <button class="btn btn-secondary" onclick="renderRanking()">🔄 Actualiser</button>
-    <button class="btn btn-green" onclick="saveToSheets()">📤 Sync Google Sheets</button>
     <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
   </div>
 </div>
@@ -932,7 +907,6 @@ function syncSettings() {
   getSettings().intervalSec = parseInt(document.getElementById('interval-sec').value) || 360;
   getSettings().cooldownSec = parseInt(document.getElementById('cooldown-sec').value) || 60;
   state.appsScriptUrl = document.getElementById('apps-script-url').value;
-  state.sheetId = document.getElementById('sheet-id').value;
   state.sheetName = getCourse().name;
 }
 
@@ -954,6 +928,7 @@ function deleteCourse(id, event) {
   renderStudents();
   renderDepartList();
   autoSaveLocal();
+  saveConfigToSheets(true);
   // Synchroniser la suppression sur Google Sheets
   saveConfigToSheets();
   toast(`Course "${name}" supprimée`, 'success');
@@ -1034,6 +1009,7 @@ function resetAllStats() {
   updateStudentStats();
   renderStudentButtons();
   autoSaveLocal();
+  saveConfigToSheets(true);
   toast('✅ Stats remises à zéro — la liste est conservée', 'success');
 }
 
@@ -1084,6 +1060,7 @@ function addCourse() {
   updateStudentStats();
   renderStudentButtons();
   autoSaveLocal();
+  saveConfigToSheets(true);
   // Aller sur l'onglet Élèves pour vérifier / compléter
   showTab('students');
 }
@@ -1156,6 +1133,7 @@ function mergeCourses() {
   renderCourseSelector();
   renderStudents();
   autoSaveLocal();
+  saveConfigToSheets(true);
   toast(`✅ Course "${mergeName}" créée avec ${merged.length} élèves`, 'success');
   // Switch to ranking to show results
   showTab('ranking');
@@ -1195,6 +1173,7 @@ function addStudent(firstname, lastname, cls) {
   renderStudents();
   updateStudentStats();
   autoSaveLocal();
+  saveConfigToSheets(true);
   autoSyncSheets();
 }
 
@@ -1205,6 +1184,7 @@ function removeStudent(id) {
   updateStudentStats();
   renderStudentButtons();
   autoSaveLocal();
+  saveConfigToSheets(true);
   autoSyncSheets();
 }
 
@@ -1227,6 +1207,7 @@ function copyStudentList() {
   updateStudentStats();
   renderStudentButtons();
   autoSaveLocal();
+  saveConfigToSheets(true);
   toast(`✅ ${target.students.length} élèves copiés depuis "${source.name}"`, 'success');
 }
 
@@ -1237,6 +1218,7 @@ function toggleAbsent(id) {
   renderStudents();
   renderStudentButtons();
   autoSaveLocal();
+  saveConfigToSheets(true);
   toast(student.absent ? `${student.firstname} marqué absent` : `${student.firstname} de retour`, student.absent ? 'error' : 'success');
 }
 
@@ -1246,6 +1228,7 @@ function clearStudents() {
   renderStudents();
   updateStudentStats();
   autoSaveLocal();
+  saveConfigToSheets(true);
 }
 
 function reassignNums() {
@@ -1340,6 +1323,7 @@ function importExcel(event) {
       toast(`${imported} élève${imported > 1 ? 's' : ''} importé${imported > 1 ? 's' : ''}`, 'success');
       event.target.value = '';
       autoSaveLocal();
+      saveConfigToSheets(true);
       autoSyncSheets();
     } catch(err) {
       toast('Erreur d\'import : ' + err.message, 'error');
@@ -1678,6 +1662,7 @@ function reactivateButton(studentId) {
   renderStudentButtons();
   updateStudentStats();
   autoSaveLocal();
+  saveConfigToSheets(true);
   playShortBeep();
   toast(`↩ Arrivée annulée — ${student ? student.firstname + ' ' + student.lastname : ''} remis en course`, '');
 }
@@ -1745,6 +1730,7 @@ function handleArrival(studentId) {
   renderStudentButtons();
   updateStudentStats();
   autoSaveLocal();
+  saveConfigToSheets(true);
   autoSyncSheets({
     timestamp: now,
     firstname: student.firstname, lastname: student.lastname,
@@ -1910,41 +1896,13 @@ function autoSyncSheets(scanData) {
   saveConfigToSheets(true);
 }
 
-function diag(msg) {
-  const box = document.getElementById('diag-box');
-  box.style.display = 'block';
-  box.textContent += msg + '\n';
-}
-function diagClear() {
-  const box = document.getElementById('diag-box');
-  box.style.display = 'none';
-  box.textContent = '';
-}
-
-function testSheetsConnection() {
-  // Le bouton "Charger depuis Sheets" teste et charge en même temps
-  loadConfigFromSheets();
-}
-
-function openUrlInTab() {
-  const url = getScriptUrl();
-  if (!url) { toast('URL manquante', 'error'); return; }
-  // Ouvre avec ?data={"action":"ping"}&callback=test
-  window.open(url + '?data=%7B%22action%22%3A%22ping%22%7D', '_blank');
-}
-
-function saveToSheets() {
-  const url = getScriptUrl();
-  if (!url) { toast('URL Apps Script non configurée', 'error'); return; }
-  saveConfigToSheets();
-  toast('☁️ Sauvegarde en cours...', 'success');
-}
-
-function setSheetStatus(status, text) {
-  const dot = document.getElementById('sheets-dot');
-  const label = document.getElementById('sheets-status-text');
-  dot.className = 'dot' + (status==='connected'?' connected':status==='syncing'?' syncing':'');
-  label.textContent = text;
+function syncScriptUrl() {
+  const url = (document.getElementById('apps-script-url').value || '').trim();
+  try { localStorage.setItem('backyard_eps_script_url', url); } catch(e) {}
+  autoSaveLocal();
+  if (url && url.startsWith('https://script.google.com/')) {
+    loadConfigFromSheets();
+  }
 }
 
 // ======================================================
@@ -2026,18 +1984,15 @@ function loadConfigFromSheets() {
   }
 
   showLoadStatus('🔄 Connexion à Google Sheets en cours...', 'info');
-  setSheetStatus('syncing', 'Chargement...');
 
   jsonpFetch(url + '?action=load_config')
     .then(res => {
       if (res.status === 'empty') {
         showLoadStatus('ℹ️ Aucune configuration sauvegardée sur ce Sheets.<br>Ajoutez des élèves ici puis cliquez <strong>☁️ Sauvegarder sur Sheets</strong>.', 'info');
-        setSheetStatus('connected', 'Connecté — vide');
         return;
       }
       if (res.status !== 'ok' || !res.state || !res.state.courses) {
         showLoadStatus('❌ Erreur : ' + (res.message || 'réponse invalide'), 'error');
-        setSheetStatus('error', 'Erreur');
         return;
       }
 
@@ -2064,14 +2019,12 @@ function loadConfigFromSheets() {
 
       // Stocker temporairement pour que confirmLoadConfig() puisse y accéder
       window._pendingConfig = res;
-      setSheetStatus('connected', 'Connecté ✓');
     })
     .catch(err => {
       showLoadStatus(
         `❌ Impossible de joindre Google Sheets.<br><small>Vérifiez l'URL et que le déploiement est bien en accès "Tout le monde".<br>Erreur : ${err.message}</small>`,
         'error'
       );
-      setSheetStatus('error', 'Inaccessible');
     });
 }
 
@@ -2102,7 +2055,6 @@ function saveConfigToSheets(silent) {
   };
 
   const body = JSON.stringify({ action: 'save_config', state: configState });
-  setSheetStatus('syncing', 'Sauvegarde...');
 
   // 1. Essai sendBeacon (fonctionne sur tablette depuis fichier local, fire-and-forget)
   if (navigator.sendBeacon) {
@@ -2110,7 +2062,6 @@ function saveConfigToSheets(silent) {
     const sent = navigator.sendBeacon(url, blob);
     if (sent) {
       setTimeout(() => {
-        setSheetStatus('connected', 'Sauvegardé ✓');
         if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
       }, 1500);
       return;
@@ -2129,11 +2080,9 @@ function _saveConfigJsonpChunked(url, configState, silent) {
   if (fullUrl.length <= 7800) {
     jsonpFetch(fullUrl)
       .then(() => {
-        setSheetStatus('connected', 'Sauvegardé ✓');
         if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
       })
       .catch(err => {
-        setSheetStatus('error', 'Erreur');
         if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
       });
     return;
@@ -2161,11 +2110,9 @@ function _saveConfigJsonpChunked(url, configState, silent) {
 
   chain
     .then(() => {
-      setSheetStatus('connected', 'Sauvegardé ✓');
       if (!silent) showLoadStatus('✅ Toutes les courses sauvegardées', 'ok');
     })
     .catch(err => {
-      setSheetStatus('error', 'Erreur');
       if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
     });
 }
@@ -2195,6 +2142,7 @@ function importJSON(event) {
       renderStudents();
       renderParcours();
       autoSaveLocal();
+      saveConfigToSheets(true);
       toast('Import JSON réussi', 'success');
     } catch(err) {
       toast('Erreur import: '+err.message, 'error');
@@ -2202,104 +2150,6 @@ function importJSON(event) {
   };
   reader.readAsText(file);
   event.target.value = '';
-}
-
-// ======================================================
-// TRANSFERT TABLETTE — QR CODE
-// ======================================================
-function showTransferQR() {
-  const area = document.getElementById('transfer-qr-area');
-  const canvas = document.getElementById('transfer-qr-canvas');
-  const info = document.getElementById('transfer-size-info');
-
-  // Données compactes : seulement courses + settings, sans stats pour alléger
-  const payload = JSON.stringify({
-    courses: state.courses,
-    activeCourse: state.activeCourse,
-    appsScriptUrl: document.getElementById('apps-script-url').value || ''
-  });
-
-  // Compresser en base64
-  const b64 = btoa(unescape(encodeURIComponent(payload)));
-  const sizeKB = Math.round(b64.length / 1024);
-
-  if (b64.length > 2953) {
-    // QR code limite ~2953 bytes en binaire / ~1817 en alphanum
-    // Si trop grand : proposer export JSON à la place
-    info.textContent = `⚠️ Données trop volumineuses pour un QR code (${sizeKB} Ko). Utilisez "Exporter JSON" et envoyez le fichier par message.`;
-    info.style.color = 'var(--accent)';
-    area.style.display = 'block';
-    canvas.style.display = 'none';
-    return;
-  }
-
-  // Construire l'URL avec les données encodées dans le hash
-  const url = window.location.href.split('#')[0] + '#transfer=' + encodeURIComponent(b64);
-
-  // Générer le QR
-  canvas.style.display = 'block';
-  canvas.width = 260; canvas.height = 260;
-  // Utilise QRCode.js
-  try {
-    const qrDiv = document.createElement('div');
-    new QRCode(qrDiv, {
-      text: url,
-      width: 260, height: 260,
-      correctLevel: QRCode.CorrectLevel.M
-    });
-    // QRCode.js génère un canvas ou img — récupérer et dessiner sur notre canvas
-    setTimeout(() => {
-      const generated = qrDiv.querySelector('canvas') || qrDiv.querySelector('img');
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 260, 260);
-      if (generated) ctx.drawImage(generated, 0, 0, 260, 260);
-    }, 100);
-    info.textContent = `${sizeKB} Ko encodés — scannez avec l'autre tablette`;
-    info.style.color = 'var(--muted)';
-  } catch(e) {
-    info.textContent = 'QR code non disponible — utilisez Export JSON';
-    info.style.color = 'var(--accent)';
-  }
-
-  area.style.display = 'block';
-}
-
-// Détecte un transfert entrant dans l'URL (#transfer=...)
-function checkUrlTransfer() {
-  try {
-    const hash = window.location.hash;
-    if (!hash.startsWith('#transfer=')) return;
-    const b64 = decodeURIComponent(hash.slice('#transfer='.length));
-    const json = decodeURIComponent(escape(atob(b64)));
-    const data = JSON.parse(json);
-    if (!data.courses) return;
-
-    const confirmed = confirm(
-      '📲 Données reçues depuis une autre tablette !\n\n' +
-      `${Object.keys(data.courses).length} course(s) détectée(s).\n\n` +
-      'Charger ces données ? (Les données locales seront remplacées.)'
-    );
-    if (!confirmed) { window.location.hash = ''; return; }
-
-    state.courses = data.courses;
-    if (data.activeCourse && state.courses[data.activeCourse]) state.activeCourse = data.activeCourse;
-    else state.activeCourse = Object.keys(state.courses)[0];
-    if (data.appsScriptUrl) document.getElementById('apps-script-url').value = data.appsScriptUrl;
-
-    renderCourseSelector();
-    renderStudents();
-    renderParcours();
-    renderParcoursSelector();
-    updateStudentStats();
-    renderStudentButtons();
-    autoSaveLocal();
-    window.location.hash = '';
-    toast('✅ Données transférées avec succès !', 'success');
-  } catch(e) {
-    console.warn('Transfert URL invalide:', e);
-    window.location.hash = '';
-  }
 }
 
 function exportCSV() {
@@ -2370,7 +2220,6 @@ function init() {
         appsScriptUrl = parsed.appsScriptUrl;
         document.getElementById('apps-script-url').value = appsScriptUrl;
       }
-      if (parsed.sheetId) document.getElementById('sheet-id').value = parsed.sheetId;
     }
   } catch(e) { console.warn('Chargement localStorage:', e); }
 
@@ -2396,8 +2245,6 @@ function init() {
     loadConfigFromSheets();
   }
 
-  // 4. Vérifie si un transfert arrive dans l'URL
-  checkUrlTransfer();
 }
 
 // ======================================================
@@ -2437,7 +2284,6 @@ function autoSaveLocal() {
       courses: state.courses,
       activeCourse: state.activeCourse,
       appsScriptUrl: (document.getElementById('apps-script-url') || {}).value || '',
-      sheetId:       (document.getElementById('sheet-id')        || {}).value || ''
     });
     localStorage.setItem('backyard_eps_state', payload);
   } catch(e) {
