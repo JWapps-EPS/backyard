@@ -470,6 +470,11 @@
   <h1>Backyard Ultra EPS</h1>
   <span id="course-label">Course 1</span>
   <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+    <button onclick="manualSave()" id="save-btn" style="
+      background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);
+      color:#fff; padding:6px 14px; border-radius:8px; cursor:pointer;
+      font-size:0.85rem; font-weight:600; font-family:'DM Sans',sans-serif;
+    ">💾 Sauvegarder</button>
     <button onclick="toggleFullscreen()" id="fs-btn" style="
       background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);
       color:#fff; padding:6px 14px; border-radius:8px; cursor:pointer;
@@ -2146,73 +2151,77 @@ function saveConfigToSheets(silent) {
     coursesLight[id] = Object.assign({}, c, { scans: [] });
   });
 
-  const configState = {
-    courses: coursesLight,
-    activeCourse: state.activeCourse,
-    activeParcours: state.activeParcours
-  };
+  const courseIds = Object.keys(coursesLight);
 
-  const body = JSON.stringify({ action: 'save_config', state: configState });
-
-  // 1. Essai sendBeacon (fonctionne sur tablette depuis fichier local, fire-and-forget)
-  if (navigator.sendBeacon) {
-    const blob = new Blob([body], { type: 'application/json' });
-    const sent = navigator.sendBeacon(url, blob);
-    if (sent) {
-      setTimeout(() => {
-        if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
-      }, 1500);
-      return;
-    }
-  }
-
-  // 2. Fallback : JSONP GET par courses (découpe si trop long)
-  _saveConfigJsonpChunked(url, configState, silent);
+  // Sauvegarde course par course (merge) pour éviter le dépassement de taille
+  // sendBeacon + JSONP en cascade pour chaque course
+  _saveCoursesSequentially(url, coursesLight, courseIds, state.activeCourse, silent);
 }
 
-function _saveConfigJsonpChunked(url, configState, silent) {
-  // Essai en une seule fois d'abord
-  const encoded = encodeURIComponent(JSON.stringify(configState));
-  const fullUrl = url + '?action=save_config&data=' + encoded;
+function _saveCoursesSequentially(url, coursesLight, courseIds, activeCourse, silent) {
+  if (courseIds.length === 0) return;
 
-  if (fullUrl.length <= 7800) {
-    jsonpFetch(fullUrl)
-      .then(() => {
-        if (!silent) showLoadStatus('✅ Sauvegardé sur Google Sheets', 'ok');
-      })
+  let completed = 0;
+
+  function sendCourse(idx) {
+    if (idx >= courseIds.length) {
+      if (!silent) showLoadStatus('✅ ' + completed + '/' + courseIds.length + ' course(s) sauvegardée(s)', 'ok');
+      return;
+    }
+    const id = courseIds[idx];
+    const isFirst = idx === 0;
+    const partial = {
+      action: 'save_config',
+      state: {
+        courses: { [id]: coursesLight[id] },
+        activeCourse: activeCourse,
+        _merge: !isFirst   // première course écrase, les suivantes fusionnent
+      }
+    };
+    const body = JSON.stringify(partial);
+
+    // Essai sendBeacon
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      const sent = navigator.sendBeacon(url, blob);
+      if (sent) {
+        completed++;
+        // Délai entre chaque beacon pour ne pas surcharger Apps Script
+        setTimeout(() => sendCourse(idx + 1), 600);
+        return;
+      }
+    }
+
+    // Fallback JSONP GET
+    const enc = encodeURIComponent(JSON.stringify(partial.state));
+    const getUrl = url + '?action=save_config&data=' + enc;
+    jsonpFetch(getUrl)
+      .then(() => { completed++; sendCourse(idx + 1); })
       .catch(err => {
-        if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
+        if (!silent) showLoadStatus('❌ Erreur sauvegarde course ' + (idx+1) + ': ' + err.message, 'error');
       });
-    return;
   }
 
-  // Sauvegarder course par course séquentiellement
-  const courseIds = Object.keys(configState.courses);
-  if (!silent) showLoadStatus('🔄 Sauvegarde en cours (' + courseIds.length + ' courses)...', 'info');
+  if (!silent && courseIds.length > 1) showLoadStatus('🔄 Sauvegarde (' + courseIds.length + ' courses)...', 'info');
+  sendCourse(0);
+}
 
-  let chain = Promise.resolve();
-  courseIds.forEach((id, i) => {
-    chain = chain.then(() => {
-      const partial = {
-        courses: { [id]: configState.courses[id] },
-        activeCourse: configState.activeCourse,
-        activeParcours: configState.activeParcours,
-        _chunk: i,
-        _total: courseIds.length,
-        _merge: i > 0  // indique au script de fusionner avec l'existant
-      };
-      const enc = encodeURIComponent(JSON.stringify(partial));
-      return jsonpFetch(url + '?action=save_config&data=' + enc);
-    });
-  });
+// Sauvegarde manuelle (bouton header)
+function manualSave() {
+  autoSaveLocal();
+  saveConfigToSheets(false);
+  const btn = document.getElementById('save-btn');
+  if (btn) { btn.textContent = '✅ Sauvegardé'; setTimeout(() => { btn.textContent = '💾 Sauvegarder'; }, 2500); }
+}
 
-  chain
-    .then(() => {
-      if (!silent) showLoadStatus('✅ Toutes les courses sauvegardées', 'ok');
-    })
-    .catch(err => {
-      if (!silent) showLoadStatus('❌ Erreur : ' + err.message, 'error');
-    });
+// Sauvegarde automatique toutes les 30s
+let _autoSaveTimer = null;
+function startAutoSaveTimer() {
+  if (_autoSaveTimer) clearInterval(_autoSaveTimer);
+  _autoSaveTimer = setInterval(() => {
+    autoSaveLocal();
+    saveConfigToSheets(true);
+  }, 30000);
 }
 
 // ======================================================
@@ -2343,6 +2352,8 @@ function init() {
     loadConfigFromSheets();
   }
 
+  // 4. Démarrer la sauvegarde automatique toutes les 30s
+  startAutoSaveTimer();
 }
 
 // ======================================================
