@@ -683,6 +683,8 @@
       padding:2px 20px; flex-shrink:0; min-width:140px; text-align:center; line-height:1.1;
     ">--:--</div>
     <div id="btn-tour-info" style="background:var(--surface2); border-radius:8px; padding:5px 12px; font-size:0.78rem; color:var(--accent2); font-weight:700; white-space:nowrap; flex-shrink:0;">Tour 1</div>
+    <div id="btn-window-status" style="border-radius:8px; padding:5px 10px; font-size:0.72rem; font-weight:700; white-space:nowrap; flex-shrink:0; display:none;"></div>
+    <button id="btn-force-enable" onclick="forceEnableButtons()" style="display:none; border-radius:8px; padding:5px 10px; font-size:0.72rem; font-weight:700; background:var(--accent2); color:#000; border:none; cursor:pointer; flex-shrink:0;">🔓 Forcer</button>
   </div>
 
   <!-- Corps : grille boutons + journal côte à côte -->
@@ -1407,6 +1409,11 @@ function startChrono() {
       ac.style.color = remaining <= 10 ? 'var(--accent)' : remaining <= 30 ? 'var(--accent2)' : 'var(--green)';
     }
 
+    // Fenêtre d'activation des boutons :
+    // Active seulement de 3:00 à 0:00 avant la sonnerie (soit dernière moitié du tour)
+    // Désactive les 3 premières minutes après départ (élèves pas encore revenus)
+    updateButtonsWindow(remaining, intervalSec);
+
     // Temps total écoulé
     const mm = Math.floor(sessionElapsed / 60).toString().padStart(2, '0');
     const ss = Math.floor(sessionElapsed % 60).toString().padStart(2, '0');
@@ -1424,6 +1431,81 @@ function startChrono() {
 }
 
 let lastDepartureTimestamp = null; // timestamp réel de la dernière sonnerie
+let buttonsForceEnabled = false;  // forçage prof
+let _lastBtnWindowState = null;   // évite les re-renders inutiles
+
+function updateButtonsWindow(remaining, intervalSec) {
+  // Fenêtre active : les 3 dernières minutes avant la sonnerie
+  // (= quand remaining <= intervalSec/2, soit <= 3min pour un tour de 6min)
+  const windowSec = Math.min(180, intervalSec / 2); // 3 min ou moitié du tour si < 6min
+  const windowOpen = buttonsForceEnabled || (state.chrono.running && remaining <= windowSec && remaining > 0);
+
+  if (windowOpen === _lastBtnWindowState) return; // pas de changement
+  _lastBtnWindowState = windowOpen;
+
+  const statusEl = document.getElementById('btn-window-status');
+  const forceBtn = document.getElementById('btn-force-enable');
+
+  if (!state.chrono.running) {
+    // Chrono arrêté : boutons toujours actifs, pas d'indicateur
+    if (statusEl) statusEl.style.display = 'none';
+    if (forceBtn) forceBtn.style.display = 'none';
+    setBtnGridEnabled(true);
+    return;
+  }
+
+  if (windowOpen) {
+    // Fenêtre ouverte : boutons actifs
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(0,230,118,0.15)';
+      statusEl.style.color = 'var(--green)';
+      statusEl.style.border = '1px solid var(--green)';
+      statusEl.textContent = '✅ Arrivées ouvertes';
+    }
+    if (forceBtn) forceBtn.style.display = 'none';
+    setBtnGridEnabled(true);
+  } else {
+    // Fenêtre fermée : boutons inactifs
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(255,60,60,0.1)';
+      statusEl.style.color = 'var(--muted)';
+      statusEl.style.border = '1px solid var(--border)';
+      const waitSec = Math.max(0, remaining - windowSec);
+      const wm = Math.floor(waitSec/60);
+      const ws = Math.floor(waitSec%60).toString().padStart(2,'0');
+      statusEl.textContent = `⏳ Arrivées dans ${wm}:${ws}`;
+    }
+    if (forceBtn) forceBtn.style.display = 'block';
+    setBtnGridEnabled(false);
+  }
+}
+
+function setBtnGridEnabled(enabled) {
+  // Active/désactive visuellement toute la grille (sans toucher btnState individuel)
+  const grid = document.getElementById('student-btn-grid');
+  if (!grid) return;
+  grid.style.opacity = enabled ? '1' : '0.35';
+  grid.style.pointerEvents = enabled ? '' : 'none';
+}
+
+function forceEnableButtons() {
+  buttonsForceEnabled = true;
+  _lastBtnWindowState = null; // force re-render
+  const forceBtn = document.getElementById('btn-force-enable');
+  if (forceBtn) forceBtn.style.display = 'none';
+  const statusEl = document.getElementById('btn-window-status');
+  if (statusEl) {
+    statusEl.style.background = 'rgba(255,140,0,0.15)';
+    statusEl.style.color = 'var(--accent2)';
+    statusEl.style.border = '1px solid var(--accent2)';
+    statusEl.textContent = '🔓 Forcé par le prof';
+  }
+  setBtnGridEnabled(true);
+  toast('Boutons déverrouillés', 'success');
+}
+
 
 function fireDeparture(tourNum) {
   lastDepartureTimestamp = Date.now(); // stocke le timestamp réel
@@ -1438,8 +1520,11 @@ function fireDeparture(tourNum) {
   document.getElementById('chrono-label').textContent = '🏁 PARTEZ !';
   setTimeout(() => { document.getElementById('chrono-label').textContent = 'Prochain départ dans'; }, 2000);
 
-  // Réactive tous les boutons élèves pour le nouveau tour
+  // Réactive tous les boutons élèves pour le nouveau tour (état individuel)
   reactivateAllButtons();
+  // Réinitialise le forçage prof — la fenêtre reprend son cycle normal
+  buttonsForceEnabled = false;
+  _lastBtnWindowState = null;
 
   // Enregistre dans l'historique
   const mm = Math.floor(sessionElapsed / 60).toString().padStart(2, '0');
@@ -1976,19 +2061,21 @@ function applyLoadedConfig(res) {
   autoSaveLocal();
 }
 
-function loadConfigFromSheets() {
+function loadConfigFromSheets(retry) {
   const url = getScriptUrl();
   if (!url) {
     showLoadStatus('❌ Collez d\'abord l\'URL Apps Script ci-dessus.', 'error');
     return;
   }
 
-  showLoadStatus('🔄 Connexion à Google Sheets en cours...', 'info');
+  if (!retry) showLoadStatus('🔄 Connexion à Google Sheets en cours...', 'info');
+  else showLoadStatus('🔄 Nouvelle tentative...', 'info');
 
-  jsonpFetch(url + '?action=load_config')
+  // Timeout long (20s) pour le cold start Apps Script
+  jsonpFetch(url + '?action=load_config', 20000)
     .then(res => {
       if (res.status === 'empty') {
-        showLoadStatus('ℹ️ Aucune configuration sauvegardée sur ce Sheets.<br>Ajoutez des élèves ici puis cliquez <strong>☁️ Sauvegarder sur Sheets</strong>.', 'info');
+        showLoadStatus('ℹ️ Aucune configuration sauvegardée sur ce Sheets.<br><small>Ajoutez des élèves puis les données seront sauvegardées automatiquement.</small>', 'info');
         return;
       }
       if (res.status !== 'ok' || !res.state || !res.state.courses) {
@@ -1999,7 +2086,6 @@ function loadConfigFromSheets() {
       const courses = res.state.courses;
       const nb = Object.keys(courses).length;
 
-      // Afficher les courses trouvées avec leurs infos
       const lines = Object.values(courses).map(c => {
         const parcours = (c.settings && c.settings.parcours || []).map(p => `${p.name} ${p.points}pt (${(p.distance/1000).toFixed(1)}km)`).join(', ');
         const nbElevs = (c.students || []).length;
@@ -2010,21 +2096,26 @@ function loadConfigFromSheets() {
       }).join('');
 
       showLoadStatus(
-        `✅ ${nb} course${nb>1?'s':''} trouvée${nb>1?'s':''} sur Google Sheets :<br>${lines}
+        `✅ ${nb} course${nb>1?'s':''} trouvée${nb>1?'s':''} :<br>${lines}
         <div style="margin-top:10px;">
           <button class="btn btn-primary" onclick="confirmLoadConfig()" style="background:#1565c0">📥 Charger ces courses</button>
         </div>`,
         'ok'
       );
 
-      // Stocker temporairement pour que confirmLoadConfig() puisse y accéder
       window._pendingConfig = res;
     })
     .catch(err => {
-      showLoadStatus(
-        `❌ Impossible de joindre Google Sheets.<br><small>Vérifiez l'URL et que le déploiement est bien en accès "Tout le monde".<br>Erreur : ${err.message}</small>`,
-        'error'
-      );
+      // Retry automatique une fois en cas de timeout (cold start Apps Script)
+      if (!retry) {
+        showLoadStatus('🔄 Connexion lente, nouvelle tentative...', 'info');
+        setTimeout(() => loadConfigFromSheets(true), 2000);
+      } else {
+        showLoadStatus(
+          `❌ Impossible de joindre Google Sheets.<br><small>Vérifiez l'URL et que le déploiement est bien en accès "Tout le monde".<br>Erreur : ${err.message}</small>`,
+          'error'
+        );
+      }
     });
 }
 
