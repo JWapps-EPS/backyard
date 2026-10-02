@@ -485,7 +485,6 @@
 
 <div class="tabs">
   <div class="tab active" onclick="showTab('setup')">⚙️ Paramètres</div>
-  <div class="tab" onclick="showTab('students')">👥 Élèves</div>
   <div class="tab" onclick="showTab('chrono')">⏱️ Chrono</div>
   <div class="tab" onclick="showTab('scanner')">🏁 Arrivées</div>
   <div class="tab" onclick="showTab('ranking')">🏆 Classement</div>
@@ -516,129 +515,108 @@
   </div>
 
   <div class="card">
-    <div class="card-title">⏱ Chrono</div>
-    <div class="form-grid">
-      <div>
-        <label>Durée du tour (secondes)</label>
-        <input type="number" id="interval-sec" value="360" min="10">
-      </div>
-      <div>
-        <label>Cooldown (secondes)</label>
-        <input type="number" id="cooldown-sec" value="60" min="5">
-      </div>
-    </div>
-  </div>
+    <div class="card-title">📚 Courses</div>
 
-  <div class="card">
-    <div class="card-title">🗺 Parcours</div>
-    <div id="parcours-list"></div>
-    <button class="btn btn-secondary" onclick="addParcours()" style="margin-top:12px">+ Ajouter un parcours</button>
-  </div>
-
-  <div class="card">
-    <div class="card-title">💾 Gestion des courses</div>
+    <!-- Sélecteur de course -->
     <div class="course-selector" id="course-selector"></div>
-    <div class="btn-row">
+    <div class="btn-row" style="margin-bottom:16px;">
       <button class="btn btn-secondary" onclick="addCourse()">+ Nouvelle course</button>
-      <button class="btn btn-primary" onclick="resetAllStats()" style="background:#e65100">🔄 Remettre à zéro les stats</button>
+      <button class="btn btn-primary" onclick="deleteCourseConfirm()" style="background:#b71c1c">🗑 Supprimer cette course</button>
     </div>
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="exportJSON()">📥 Exporter JSON</button>
-      <button class="btn btn-secondary" onclick="document.getElementById('import-json').click()">📤 Importer JSON</button>
-      <input type="file" id="import-json" accept=".json" style="display:none" onchange="importJSON(event)">
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="testLocalStorage()" style="font-size:0.8rem">🔍 Tester la sauvegarde</button>
-    </div>
-  </div>
 
-  <div class="card">
-    <div class="card-title">🔀 Fusionner 2 courses</div>
-    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:14px; line-height:1.6;">
-      Combine les résultats de 2 courses (tablette 1 pt + tablette 2 pts) en une seule course fusionnée.<br>
-      Les élèves sont retrouvés par <strong>nom+prénom</strong> et leurs stats sont <strong>additionnées</strong>.
-    </p>
-    <div class="form-grid" style="gap:10px; margin-bottom:12px;">
-      <div>
-        <label>Course A (ex: tablette 1 pt)</label>
-        <select id="merge-course-a" style="width:100%; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
-      </div>
-      <div>
-        <label>Course B (ex: tablette 2 pts)</label>
-        <select id="merge-course-b" style="width:100%; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
+    <div style="border-top:1px solid var(--border); margin-bottom:16px; padding-top:14px;">
+      <div style="font-size:0.75rem; text-transform:uppercase; color:var(--muted); letter-spacing:1px; margin-bottom:2px;">Course active</div>
+      <div style="font-size:1rem; font-weight:600;" id="active-course-name-label">—</div>
+    </div>
+
+    <!-- Sous-section Chrono -->
+    <div style="border-left:3px solid var(--accent); padding-left:14px; margin-bottom:20px;">
+      <div style="font-size:0.75rem; text-transform:uppercase; color:var(--muted); letter-spacing:1px; margin-bottom:10px;">⏱ Chrono de cette course</div>
+      <div class="form-grid">
+        <div>
+          <label>Durée du tour (secondes)</label>
+          <input type="number" id="interval-sec" value="360" min="10">
+        </div>
+        <div>
+          <label>Cooldown (secondes)</label>
+          <input type="number" id="cooldown-sec" value="60" min="5">
+        </div>
       </div>
     </div>
-    <div>
-      <label>Nom de la course fusionnée</label>
-      <input type="text" id="merge-name" value="Résultats fusionnés" style="margin-bottom:12px;">
+
+    <!-- Sous-section Parcours -->
+    <div style="border-left:3px solid var(--accent); padding-left:14px; margin-bottom:20px;">
+      <div style="font-size:0.75rem; text-transform:uppercase; color:var(--muted); letter-spacing:1px; margin-bottom:10px;">🗺 Parcours de cette course</div>
+      <div id="parcours-list"></div>
+      <button class="btn btn-secondary" onclick="addParcours()" style="margin-top:12px">+ Ajouter un parcours</button>
     </div>
-    <button class="btn btn-primary" onclick="mergeCourses()" style="background:#6200ea">🔀 Fusionner</button>
-  </div>
-</div>
 
-<!-- ======================== STUDENTS ======================== -->
-<div class="page" id="page-students">
-  <div class="stats-bar" id="student-stats"></div>
+    <!-- Sous-section Élèves -->
+    <div style="border-left:3px solid var(--accent); padding-left:14px;">
+      <div style="font-size:0.75rem; text-transform:uppercase; color:var(--muted); letter-spacing:1px; margin-bottom:10px;">👥 Élèves de cette course</div>
 
-  <div class="card">
-    <div class="card-title">📋 Copier la liste depuis une autre course</div>
-    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:12px; line-height:1.6;">
-      Copie la liste d'élèves d'une autre course vers la course active <strong id="copy-target-label"></strong>. Les stats restent à zéro.
-    </p>
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-      <select id="copy-from-course" style="flex:1; min-width:160px; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
-      <button class="btn btn-primary" onclick="copyStudentList()" style="white-space:nowrap">📋 Copier la liste</button>
-    </div>
-  </div>
+      <div class="stats-bar" id="student-stats" style="margin-bottom:14px;"></div>
 
-  <div class="card">
-    <div class="card-title">📥 Importer depuis Excel</div>
-    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:12px;">Colonnes attendues : <strong>Élève, Classe</strong> (le N° est attribué automatiquement)</p>
-    <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" onchange="importExcel(event)">
-  </div>
-
-  <div class="card">
-    <div class="card-title">✏️ Ajouter manuellement</div>
-    <div class="student-add-form">
-      <div>
-        <label>Prénom</label>
-        <input type="text" id="add-firstname" placeholder="Thomas">
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">📥 Importer depuis Excel</div>
+        <p style="font-size:0.8rem; color:var(--muted); margin-bottom:8px;">Colonnes attendues : <strong>Élève, Classe</strong> (le N° est attribué automatiquement)</p>
+        <input type="file" id="excel-file" accept=".xlsx,.xls,.csv" onchange="importExcel(event)">
       </div>
-      <div>
-        <label>Nom</label>
-        <input type="text" id="add-lastname" placeholder="Dupont">
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">✏️ Ajouter manuellement</div>
+        <div class="student-add-form">
+          <div>
+            <label>Prénom</label>
+            <input type="text" id="add-firstname" placeholder="Thomas">
+          </div>
+          <div>
+            <label>Nom</label>
+            <input type="text" id="add-lastname" placeholder="Dupont">
+          </div>
+          <div>
+            <label>Classe</label>
+            <input type="text" id="add-class" placeholder="3A">
+          </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:10px" onclick="addStudent()">+ Ajouter l'élève</button>
       </div>
+
       <div>
-        <label>Classe</label>
-        <input type="text" id="add-class" placeholder="3A">
+        <div style="font-size:0.8rem; color:var(--muted); font-weight:600; margin-bottom:8px;">
+          👥 Liste des élèves <span style="font-weight:400;" id="student-count"></span>
+        </div>
+        <div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <input type="text" id="search-student" placeholder="🔍 Rechercher..." style="max-width:200px; padding:8px 12px" oninput="renderStudents()">
+          <button class="btn btn-secondary btn-sm" onclick="clearStudents()">🗑️ Vider la liste</button>
+        </div>
+        <div class="table-wrap">
+          <table id="student-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nom</th>
+                <th>Classe</th>
+                <th>N°</th>
+                <th>Points</th>
+                <th>Distance</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="student-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
-    <button class="btn btn-primary" style="margin-top:10px" onclick="addStudent()">+ Ajouter l'élève</button>
+
+    <!-- Autres actions -->
+    <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:16px;">
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="resetAllStats()" style="background:#e65100">🔄 Remettre à zéro les stats</button>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">👥 Liste des élèves <span style="font-size:0.8rem; color:var(--muted); font-family:'DM Sans'" id="student-count"></span></div>
-    <div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">
-      <input type="text" id="search-student" placeholder="🔍 Rechercher..." style="max-width:200px; padding:8px 12px" oninput="renderStudents()">
-      <button class="btn btn-secondary btn-sm" onclick="clearStudents()">🗑️ Vider la liste</button>
-    </div>
-    <div class="table-wrap">
-      <table id="student-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Nom</th>
-            <th>Classe</th>
-            <th>N°</th>
-            <th>Points</th>
-            <th>Distance</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="student-tbody"></tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <!-- ======================== CHRONO ======================== -->
@@ -750,6 +728,29 @@
   <div class="btn-row" style="margin-top:16px">
     <button class="btn btn-secondary" onclick="renderRanking()">🔄 Actualiser</button>
     <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">🔀 Fusionner 2 courses</div>
+    <p style="font-size:0.82rem; color:var(--muted); margin-bottom:14px; line-height:1.6;">
+      Combine les résultats de 2 courses en une seule course fusionnée.<br>
+      Les élèves sont retrouvés par <strong>nom+prénom</strong> et leurs stats sont <strong>additionnées</strong>.
+    </p>
+    <div class="form-grid" style="gap:10px; margin-bottom:12px;">
+      <div>
+        <label>Course A</label>
+        <select id="merge-course-a" style="width:100%; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
+      </div>
+      <div>
+        <label>Course B</label>
+        <select id="merge-course-b" style="width:100%; padding:8px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text);"></select>
+      </div>
+    </div>
+    <div>
+      <label>Nom de la course fusionnée</label>
+      <input type="text" id="merge-name" value="Résultats fusionnés" style="margin-bottom:12px;">
+    </div>
+    <button class="btn btn-primary" onclick="mergeCourses()" style="background:#6200ea">🔀 Fusionner</button>
   </div>
 </div>
 
@@ -948,6 +949,11 @@ function deleteCourse(id, event) {
   toast(`Course "${name}" supprimée`, 'success');
 }
 
+function deleteCourseConfirm() {
+  const id = state.activeCourse;
+  deleteCourse(id, { stopPropagation: () => {} });
+}
+
 function renderCourseSelector() {
   const sel = document.getElementById('course-selector');
   sel.innerHTML = Object.entries(state.courses).map(([id, c]) => `
@@ -958,6 +964,8 @@ function renderCourseSelector() {
     </div>
   `).join('') + `<div class="course-chip add-btn" onclick="addCourse()">+ Nouvelle</div>`;
   document.getElementById('course-label').textContent = getCourse().name;
+  const acnl = document.getElementById('active-course-name-label');
+  if (acnl) acnl.textContent = getCourse().name;
   const sn = document.getElementById('sheets-course-name');
   if (sn) sn.textContent = getCourse().name;
   // Populate merge selects + copy select
@@ -1076,8 +1084,8 @@ function addCourse() {
   renderStudentButtons();
   autoSaveLocal();
   saveConfigToSheets(true);
-  // Aller sur l'onglet Élèves pour vérifier / compléter
-  showTab('students');
+  // Aller sur l'onglet Paramètres pour vérifier / compléter
+  showTab('setup');
 }
 
 function mergeCourses() {
@@ -1283,6 +1291,7 @@ function updateStudentStats() {
   const students = getStudents();
   const classes = [...new Set(students.map(s => s.class))];
   const container = document.getElementById('student-stats');
+  if (!container) return;
   container.innerHTML = `
     <div class="stat-box"><div class="stat-val">${students.length}</div><div class="stat-lbl">Élèves</div></div>
     <div class="stat-box"><div class="stat-val">${classes.length}</div><div class="stat-lbl">Classes</div></div>
