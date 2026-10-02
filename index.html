@@ -487,7 +487,7 @@
   <div class="tab active" onclick="showTab('setup')">⚙️ Paramètres</div>
   <div class="tab" onclick="showTab('chrono')">⏱️ Chrono</div>
   <div class="tab" onclick="showTab('scanner')">🏁 Arrivées</div>
-  <div class="tab" onclick="showTab('ranking')">🏆 Classement</div>
+  <div class="tab" onclick="showTab('ranking')">📊 Résultats</div>
 </div>
 
 <!-- ======================== SETUP ======================== -->
@@ -553,9 +553,9 @@
 
     <!-- Sous-section Élèves -->
     <div style="border-left:3px solid var(--accent); padding-left:14px;">
-      <div style="font-size:0.75rem; text-transform:uppercase; color:var(--muted); letter-spacing:1px; margin-bottom:10px;">👥 Élèves de cette course</div>
+      <div style="font-size:0.75rem; text-transform:uppercase; color:var(--muted); letter-spacing:1px; margin-bottom:10px;">👥 Élèves</div>
 
-      <div class="stats-bar" id="student-stats" style="margin-bottom:14px;"></div>
+      <div id="student-stats" style="display:none"></div>
 
       <div style="margin-bottom:16px;">
         <div style="font-size:0.8rem; color:var(--muted); margin-bottom:6px;">📥 Importer depuis Excel</div>
@@ -582,31 +582,10 @@
         <button class="btn btn-primary" style="margin-top:10px" onclick="addStudent()">+ Ajouter l'élève</button>
       </div>
 
-      <div>
-        <div style="font-size:0.8rem; color:var(--muted); font-weight:600; margin-bottom:8px;">
-          👥 Liste des élèves <span style="font-weight:400;" id="student-count"></span>
-        </div>
-        <div style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">
-          <input type="text" id="search-student" placeholder="🔍 Rechercher..." style="max-width:200px; padding:8px 12px" oninput="renderStudents()">
-          <button class="btn btn-secondary btn-sm" onclick="clearStudents()">🗑️ Vider la liste</button>
-        </div>
-        <div class="table-wrap">
-          <table id="student-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Nom</th>
-                <th>Classe</th>
-                <th>N°</th>
-                <th>Points</th>
-                <th>Distance</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="student-tbody"></tbody>
-          </table>
-        </div>
-      </div>
+      <!-- IDs conservés pour le JS mais tableau masqué -->
+      <span id="student-count" style="display:none"></span>
+      <input type="text" id="search-student" style="display:none" oninput="renderStudents()">
+      <table id="student-table" style="display:none"><thead><tr></tr></thead><tbody id="student-tbody"></tbody></table>
     </div>
 
     <!-- Autres actions -->
@@ -719,8 +698,8 @@
   </div>
 
   <div class="ranking-tabs">
-    <div class="ranking-tab active" onclick="showRanking('student')">👤 Élèves</div>
-    <div class="ranking-tab" onclick="showRanking('class')">🏫 Classes</div>
+    <div class="ranking-tab active" onclick="showRanking('student')">🏅 Classement individuel</div>
+    <div class="ranking-tab" onclick="showRanking('class')">🏫 Classement par classe</div>
   </div>
 
   <div id="ranking-list"></div>
@@ -1962,26 +1941,34 @@ function renderRanking() {
       classes[s.class].scans    += s.scans;
       classes[s.class].count++;  // présents uniquement
     });
-    // Trier par points/élève présent (pondéré)
-    const sorted = Object.values(classes).sort((a,b) => (b.points/b.count) - (a.points/a.count));
+    // Trier par points/élève inscrit (pondéré par rapport à l'effectif total de la classe)
+    const sorted = Object.values(classes).sort((a,b) => {
+      const scoreA = a.points / (totalByClass[a.name] || a.count);
+      const scoreB = b.points / (totalByClass[b.name] || b.count);
+      return scoreB - scoreA;
+    });
     container.innerHTML = sorted.map((c, i) => {
       const medal = i===0?'gold':i===1?'silver':i===2?'bronze':'';
-      const avgPts  = (c.points  / c.count).toFixed(1);
-      const avgDist = (c.distance / c.count / 1000).toFixed(2);
-      const totalDist = (c.distance / 1000).toFixed(2);
       const totalInClass = totalByClass[c.name] || c.count;
       const absentCount = totalInClass - c.count;
-      const absentNote = absentCount > 0 ? ` <span style="color:#ff8c00;font-size:0.72rem">(${absentCount} absent${absentCount>1?'s':''})</span>` : '';
+      const scoreParEleve = (c.points / totalInClass).toFixed(2);  // pondéré sur inscrits
+      const avgPtsPresents = c.count > 0 ? (c.points / c.count).toFixed(1) : '0';
+      const avgDist = c.count > 0 ? (c.distance / c.count / 1000).toFixed(2) : '0';
+      const totalDistKm = (c.distance / 1000).toFixed(2);
+      const absentNote = absentCount > 0 ? ` <span style="color:#ff8c00;font-size:0.72rem">${absentCount} absent${absentCount>1?'s':''}</span>` : '';
       return `
         <div class="rank-item">
           <div class="rank-num ${medal}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
           <div class="rank-info">
-            <div class="rank-name">${c.name} <span style="font-size:0.8rem;color:var(--muted)">${c.count}/${totalInClass} présents</span>${absentNote}</div>
-            <div style="display:grid;grid-template-columns:repeat(4,auto);gap:6px 16px;margin-top:5px;font-size:0.78rem;">
-              <div><span style="color:var(--muted)">🏅 Pts/présent</span><br><strong style="color:var(--accent);font-family:'Bebas Neue';font-size:1.2rem">${avgPts}</strong></div>
-              <div><span style="color:var(--muted)">📍 km/présent</span><br><strong style="color:var(--text)">${avgDist} km</strong></div>
-              <div><span style="color:var(--muted)">📍 km total</span><br><strong style="color:var(--text)">${totalDist} km</strong></div>
-              <div><span style="color:var(--muted)">🏅 Pts total</span><br><strong style="color:var(--accent2)">${c.points}</strong></div>
+            <div class="rank-name">${c.name}
+              <span style="font-size:0.78rem;color:var(--muted);margin-left:6px;">${c.count}/${totalInClass} présents${absentNote ? ' · ' : ''}${absentNote}</span>
+            </div>
+            <div style="margin-top:4px;font-size:0.72rem;color:var(--muted);">Score = pts totaux ÷ effectif classe</div>
+            <div style="display:grid;grid-template-columns:repeat(4,auto);gap:6px 16px;margin-top:6px;font-size:0.78rem;">
+              <div><span style="color:var(--muted)">⭐ Score/élève</span><br><strong style="color:var(--accent);font-family:'Bebas Neue';font-size:1.3rem">${scoreParEleve}</strong></div>
+              <div><span style="color:var(--muted)">🏅 Pts totaux</span><br><strong style="color:var(--text)">${c.points}</strong></div>
+              <div><span style="color:var(--muted)">🏅 Pts/présent</span><br><strong style="color:var(--accent2)">${avgPtsPresents}</strong></div>
+              <div><span style="color:var(--muted)">📍 km total</span><br><strong style="color:var(--text)">${totalDistKm} km</strong></div>
             </div>
           </div>
         </div>`;
