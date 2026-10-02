@@ -582,10 +582,24 @@
         <button class="btn btn-primary" style="margin-top:10px" onclick="addStudent()">+ Ajouter l'élève</button>
       </div>
 
-      <!-- IDs conservés pour le JS mais tableau masqué -->
-      <span id="student-count" style="display:none"></span>
-      <input type="text" id="search-student" style="display:none" oninput="renderStudents()">
-      <table id="student-table" style="display:none"><thead><tr></tr></thead><tbody id="student-tbody"></tbody></table>
+      <div style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:0.8rem; color:var(--muted);" id="student-count"></span>
+        <button class="btn btn-secondary btn-sm" onclick="clearStudents()">🗑️ Vider</button>
+      </div>
+      <input type="text" id="search-student" placeholder="🔍 Rechercher..." style="width:100%; padding:8px 12px; margin-bottom:10px;" oninput="renderStudents()">
+      <div class="table-wrap">
+        <table id="student-table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Classe</th>
+              <th style="text-align:center">Absent</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="student-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Autres actions -->
@@ -1248,18 +1262,14 @@ function renderStudents() {
   const tbody = document.getElementById('student-tbody');
   document.getElementById('student-count').textContent = `(${getStudents().length} élèves)`;
   
-  tbody.innerHTML = students.map((s, i) => `
+  tbody.innerHTML = students.map((s) => `
     <tr style="${s.absent ? 'opacity:0.45;' : ''}">
-      <td style="color:var(--muted)">${i+1}</td>
       <td><strong>${s.firstname}</strong> ${s.lastname}${s.absent ? ' <span style="font-size:0.7rem;color:#ff8c00;font-weight:600">ABSENT</span>' : ''}</td>
       <td><span class="badge badge-class">${s.class}</span></td>
-      <td style="text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--accent)">#${s.arucoId}</td>
-      <td><strong style="color:var(--accent)">${s.points}</strong></td>
-      <td>${(s.distance/1000).toFixed(2)} km</td>
-      <td style="display:flex;gap:4px;">
-        <button class="btn btn-secondary btn-sm" title="${s.absent?'Marquer présent':'Marquer absent'}" onclick="toggleAbsent('${s.id}')">${s.absent ? '✅' : '🚫'}</button>
-        <button class="btn btn-secondary btn-sm" onclick="removeStudent('${s.id}')">🗑️</button>
+      <td style="text-align:center;">
+        <button class="btn btn-secondary btn-sm" title="${s.absent?'Marquer présent':'Marquer absent'}" onclick="toggleAbsent('${s.id}')">${s.absent ? '✅ Présent' : '🚫 Absent'}</button>
       </td>
+      <td><button class="btn btn-secondary btn-sm" onclick="removeStudent('${s.id}')">🗑️</button></td>
     </tr>
   `).join('');
 }
