@@ -766,6 +766,7 @@ let state = {
       settings: {
         intervalSec: 360,
         cooldownSec: 60,
+        activeParcours: "p1",
         parcours: [
           { id: "p1", name: "Parcours A", points: 1, distance: 1000 },
           { id: "p2", name: "Parcours B", points: 2, distance: 2000 }
@@ -843,6 +844,8 @@ function renderParcours() {
 function updateParcours(idx, key, val) {
   getSettings().parcours[idx][key] = val;
   renderParcoursSelector();
+  autoSaveLocal();
+  saveConfigToSheets(true);
 }
 
 function addParcours() {
@@ -861,7 +864,7 @@ function renderParcoursSelector() {
   const p = getSettings().parcours;
   const container = document.getElementById('parcours-selector');
   if (!container) return;
-  const active = p.find(par => par.id === state.activeParcours) || p[0];
+  const active = p.find(par => par.id === getSettings().activeParcours) || p[0];
   if (!active) { container.innerHTML = '<em style="color:var(--muted)">Aucun parcours configuré</em>'; return; }
   // Color based on points
   const bgColor = active.points === 1 ? '#1565c0' : active.points === 2 ? '#b71c1c' : '#2e7d32';
@@ -892,14 +895,18 @@ function changeParcours() {
   if (!answer) return;
   const idx = parseInt(answer) - 1;
   if (isNaN(idx) || idx < 0 || idx >= p.length) { toast('Numéro invalide', 'error'); return; }
-  state.activeParcours = p[idx].id;
+  getSettings().activeParcours = p[idx].id;
   renderParcoursSelector();
+  autoSaveLocal();
+  saveConfigToSheets(true);
   toast(`Parcours "${p[idx].name}" sélectionné`, 'success');
 }
 
 function selectParcours(id) {
-  state.activeParcours = id;
+  getSettings().activeParcours = id;
   renderParcoursSelector();
+  autoSaveLocal();
+  saveConfigToSheets(true);
 }
 
 // ======================================================
@@ -1026,6 +1033,7 @@ function addCourse() {
     scans: [],
     settings: {
       intervalSec: 360, cooldownSec: 60,
+      activeParcours: 'p1',
       parcours: [
         { id:'p1', name:'Parcours A', points:1, distance:1000 },
         { id:'p2', name:'Parcours B', points:2, distance:2000 }
@@ -1760,8 +1768,8 @@ function handleArrival(studentId) {
   const student = students.find(s => s.id === studentId);
   if (!student) return;
 
-  const parcours = getSettings().parcours.find(p => p.id === state.activeParcours);
-  if (!parcours) { toast('Sélectionnez un parcours', 'error'); return; }
+  const parcours = getSettings().parcours.find(p => p.id === getSettings().activeParcours) || getSettings().parcours[0];
+  if (!parcours) { toast('Aucun parcours configuré', 'error'); return; }
 
   const now = Date.now();
   const lapTime = now; // timestamp de ce tour
@@ -2040,8 +2048,7 @@ function applyLoadedConfig(res) {
   else
     state.activeCourse = Object.keys(state.courses)[0];
 
-  // Restore activeParcours from saved state if valid
-  if (res.state.activeParcours) state.activeParcours = res.state.activeParcours;
+  // activeParcours est maintenant dans settings de chaque course — pas besoin de restauration globale
 
   renderCourseSelector();
   renderStudents();
