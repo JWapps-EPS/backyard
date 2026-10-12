@@ -815,10 +815,12 @@
   <div id="ranking-list"></div>
 
   <div class="btn-row" style="margin-top:16px">
-    <button class="btn btn-secondary" onclick="renderRanking()">🔄 Actualiser</button>
+    <button class="btn btn-secondary" onclick="renderRanking()">🔄 Actualiser (local)</button>
+    <button class="btn btn-primary" onclick="refreshRankingFromSheets()" style="background:var(--green);color:#000;">☁️ Charger depuis Sheets</button>
     <button class="btn btn-secondary" onclick="exportCSV()">📥 Export CSV</button>
     <button class="btn btn-primary" onclick="printResults()" style="background:#1565c0;">🖨️ Imprimer</button>
   </div>
+  <div id="ranking-source-info" style="font-size:0.72rem; color:var(--muted); text-align:center; margin-top:4px;"></div>
 
   <div class="card" style="margin-top:16px;">
     <div class="card-title">🔀 Fusionner 2 courses</div>
@@ -1996,8 +1998,48 @@ function showRanking(view) {
   renderRanking();
 }
 
+function aggregateAllCourses() {
+  // Agrège les résultats de TOUTES les courses par élève.
+  // Clé stable = arucoId s'il est défini et > 0, sinon prénom+nom (normalisé).
+  // Permet à un élève de courir sur le Parcours 1 (tablette 1) ET Parcours 2 (tablette 2)
+  // et d'obtenir un bilan total dans le classement.
+  const byKey = {};
+
+  function stableKey(s) {
+    if (s.arucoId && s.arucoId > 0) return 'aruco_' + s.arucoId;
+    return ('nom_' + s.firstname + '_' + s.lastname).toLowerCase().trim();
+  }
+
+  Object.values(state.courses).forEach(course => {
+    (course.students || []).forEach(s => {
+      const key = stableKey(s);
+      if (!byKey[key]) {
+        byKey[key] = {
+          id: s.id, firstname: s.firstname, lastname: s.lastname,
+          class: s.class, arucoId: s.arucoId, absent: true, // sera mis à false si présent quelque part
+          points: 0, distance: 0, scans: 0, totalTimeSec: null, speed: null
+        };
+      }
+      byKey[key].points   += (s.points   || 0);
+      byKey[key].distance += (s.distance || 0);
+      byKey[key].scans    += (s.scans    || 0);
+      if (s.totalTimeSec) byKey[key].totalTimeSec = (byKey[key].totalTimeSec || 0) + s.totalTimeSec;
+      // Présent dans au moins une course → pas absent dans le classement global
+      if (!s.absent) byKey[key].absent = false;
+    });
+  });
+
+  // Recalcul vitesse moyenne sur le total
+  Object.values(byKey).forEach(s => {
+    if (s.totalTimeSec && s.totalTimeSec > 0 && s.distance > 0) {
+      s.speed = ((s.distance / s.totalTimeSec) * 3.6).toFixed(2);
+    }
+  });
+  return Object.values(byKey).filter(s => !s.absent);
+}
+
 function renderRanking() {
-  const students = getStudents().filter(s => !s.absent);
+  const students = aggregateAllCourses();
   const totalPts = students.reduce((a,s)=>a+s.points,0);
   const totalDist = students.reduce((a,s)=>a+s.distance,0)/1000;
   const totalScans = getScans().length;
@@ -2047,10 +2089,17 @@ function renderRanking() {
     }).join('') || '<p style="color:var(--muted);padding:20px;text-align:center">Aucune donnée — les stats apparaissent après le premier passage</p>';
 
   } else {
-    // Compte tous les inscrits (présents + absents) par classe pour affichage
-    const allStudents = getStudents();
+    // Compte tous les inscrits uniques (présents + absents) dans TOUTES les courses, par classe
+    // Dédupliqué par arucoId ou prénom+nom pour éviter de compter un élève 2 fois
+    const allStudentsByKey = {};
+    Object.values(state.courses).forEach(course => {
+      (course.students || []).forEach(s => {
+        const key = (s.arucoId && s.arucoId > 0) ? 'aruco_'+s.arucoId : ('nom_'+s.firstname+'_'+s.lastname).toLowerCase().trim();
+        allStudentsByKey[key] = s;
+      });
+    });
     const totalByClass = {};
-    allStudents.forEach(s => { totalByClass[s.class] = (totalByClass[s.class] || 0) + 1; });
+    Object.values(allStudentsByKey).forEach(s => { totalByClass[s.class] = (totalByClass[s.class] || 0) + 1; });
 
     // Calcul sur les présents uniquement (students déjà filtré)
     const classes = {};
@@ -2418,6 +2467,54 @@ function printResults() {
   </body></html>`);
   win.document.close();
   setTimeout(() => win.print(), 400);
+}
+
+function refreshRankingFromSheets() {
+  const url = getSheetsUrl();
+  if (!url) { toast('Configurez d\'abord l\'URL Google Sheets dans Paramètres', 'error'); return; }
+  const infoEl = document.getElementById('ranking-source-info');
+  if (infoEl) infoEl.textContent = '⏳ Chargement depuis Sheets…';
+  jsonpFetch(url + '?action=load_config', 20000)
+    .then(res => {
+      if (res.status !== 'ok' || !res.state || !res.state.courses) {
+        toast('Erreur Sheets : ' + (res.message || 'données invalides'), 'error');
+        if (infoEl) infoEl.textContent = '❌ Impossible de charger depuis Sheets';
+        return;
+      }
+      // Fusionne les courses reçues dans state (sans écraser les scans locaux actifs)
+      Object.entries(res.state.courses).forEach(([id, course]) => {
+        if (!state.courses[id]) {
+          state.courses[id] = course;
+        } else {
+          // Mise à jour des stats élèves depuis Sheets (les points/distance sont la source de vérité)
+          const localStudents = state.courses[id].students || [];
+          const sheetsStudents = course.students || [];
+          sheetsStudents.forEach(ss => {
+            const local = localStudents.find(ls => ls.id === ss.id);
+            if (local) {
+              // Ne met à jour QUE si Sheets a plus de points (évite d'écraser un résultat local récent)
+              if ((ss.points || 0) >= (local.points || 0)) {
+                local.points = ss.points || 0;
+                local.distance = ss.distance || 0;
+                local.scans = ss.scans || 0;
+                local.totalTimeSec = ss.totalTimeSec || local.totalTimeSec;
+                local.speed = ss.speed || local.speed;
+              }
+            }
+          });
+        }
+      });
+      autoSaveLocal();
+      renderRanking();
+      const nb = Object.keys(res.state.courses).length;
+      const ts = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      if (infoEl) infoEl.textContent = `☁️ Données Sheets chargées (${nb} course${nb>1?'s':''}) — ${ts}`;
+      toast('Classement mis à jour depuis Sheets', 'success');
+    })
+    .catch(err => {
+      toast('Impossible de joindre Sheets : ' + err.message, 'error');
+      if (infoEl) infoEl.textContent = '❌ Connexion Sheets échouée';
+    });
 }
 
 function exportCSV() {
