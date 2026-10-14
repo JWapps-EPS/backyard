@@ -1458,6 +1458,9 @@ const TOTAL_DURATION_SEC = 3600; // 1 heure fixe
 function startChrono() {
   if (state.chrono.running) return;
 
+  // Déverrouille l'AudioContext sur iOS/Android (exige un geste utilisateur)
+  try { getAudioCtx(); } catch(e) {}
+
   const intervalSec = parseInt(document.getElementById('interval-sec').value) || 360;
   getSettings().intervalSec = intervalSec;
 
@@ -1518,6 +1521,15 @@ function startChrono() {
       ac.textContent = m2+':'+s2;
       ac.style.color = remaining <= 10 ? 'var(--accent)' : remaining <= 30 ? 'var(--accent2)' : 'var(--green)';
     }
+
+    // Décompte sonore : bip sur chaque seconde des 10 dernières
+    const remInt = Math.ceil(remaining); // arrondi supérieur pour attraper chaque seconde
+    if (remaining > 0 && remInt <= 10 && !_countdownPlayed.has(remInt)) {
+      _countdownPlayed.add(remInt);
+      playCountdownBeep(remInt);
+    }
+    // Réinitialise le set à chaque nouveau tour (quand remaining repart à intervalSec)
+    if (remaining > 10) _countdownPlayed.clear();
 
     // Fenêtre d'activation des boutons :
     // Active seulement de 3:00 à 0:00 avant la sonnerie (soit dernière moitié du tour)
@@ -1670,6 +1682,7 @@ function resetChrono() {
   currentTour = 0;
   lastFiredTour = -1;
   lastDepartureTimestamp = null;
+  _countdownPlayed.clear();
   tourHistory = [];
   const intervalSec = getSettings().intervalSec;
   const mm = Math.floor(intervalSec / 60).toString().padStart(2, '0');
@@ -1701,35 +1714,74 @@ function renderDepartList() {
 }
 
 // Beep sound
+// ---- Contexte audio partagé (évite les limitations mobiles) ----
+let _sharedAudioCtx = null;
+function getAudioCtx() {
+  if (!_sharedAudioCtx || _sharedAudioCtx.state === 'closed') {
+    _sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_sharedAudioCtx.state === 'suspended') _sharedAudioCtx.resume();
+  return _sharedAudioCtx;
+}
+
+// ---- Sonnerie de DÉPART — sirène puissante entendue de loin ----
 function playBeep() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // Three beeps
-    [0, 0.4, 0.8].forEach(delay => {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+
+    // Sirène montante × 3 — très forte
+    [0, 0.9, 1.8].forEach(delay => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.type = 'square';
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.8, ctx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 0.3);
+      osc.type = 'sawtooth';
+      // Fréquence monte de 440 → 880 Hz en 0.6s (effet sirène)
+      osc.frequency.setValueAtTime(440, t + delay);
+      osc.frequency.linearRampToValueAtTime(880, t + delay + 0.6);
+      gain.gain.setValueAtTime(1.5, t + delay);
+      gain.gain.setValueAtTime(1.5, t + delay + 0.55);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.75);
+      osc.start(t + delay);
+      osc.stop(t + delay + 0.75);
     });
-    
-    // Long final beep
+
+    // Coup final long et grave — PARTEZ !
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
-    osc2.type = 'sawtooth';
-    osc2.frequency.value = 660;
-    gain2.gain.setValueAtTime(1.0, ctx.currentTime + 1.2);
-    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.2);
-    osc2.start(ctx.currentTime + 1.2);
-    osc2.stop(ctx.currentTime + 2.2);
+    osc2.type = 'square';
+    osc2.frequency.value = 220;
+    gain2.gain.setValueAtTime(2.0, t + 2.9);
+    gain2.gain.setValueAtTime(2.0, t + 4.4);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 5.0);
+    osc2.start(t + 2.9);
+    osc2.stop(t + 5.0);
+  } catch(e) {}
+}
+
+// ---- Bip de décompte (10 dernières secondes) ----
+let _countdownPlayed = new Set(); // secondes déjà bippées dans ce tour
+function playCountdownBeep(secondsLeft) {
+  try {
+    const ctx = getAudioCtx();
+    const t = ctx.currentTime;
+    const isLast3 = secondsLeft <= 3; // 3, 2, 1 → bip plus aigu et fort
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'square';
+    osc.frequency.value = isLast3 ? 1200 : 800;
+    const vol = isLast3 ? 1.8 : 1.0;
+    const dur = isLast3 ? 0.18 : 0.12;
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.start(t);
+    osc.stop(t + dur);
   } catch(e) {}
 }
 
